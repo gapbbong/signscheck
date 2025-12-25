@@ -330,8 +330,21 @@ export default function PDFPreview({ file, attendees, onConfirm }: Props) {
                 });
             }
 
-            // 3. Save
+            // 3. Save PDF to bytes
             const pdfBytes = await pdfDoc.save();
+
+            // 4. Generate SHA-256 Hash (Digital Fingerprint)
+            const hashBuffer = await crypto.subtle.digest('SHA-256', pdfBytes as any);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const documentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            console.log('📌 Document Hash (SHA-256):', documentHash);
+
+            // 5. Save Hash to Firestore (if meetingId available)
+            // Note: meetingId would need to be passed as a prop to PDFPreview
+            // For now, we'll log it. Integration with meeting-service will be next step.
+
+            // 6. Download PDF
             const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');

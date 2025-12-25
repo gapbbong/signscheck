@@ -10,6 +10,7 @@ export interface Meeting {
     attachmentUrl?: string; // [New]
     attachmentName?: string; // [New]
     hostName?: string; // [New]
+    documentHash?: string; // [Security] SHA-256 hash of final signed PDF
     createdAt: any;
 }
 
@@ -75,6 +76,18 @@ export async function deleteMeeting(meetingId: string) {
     } catch (error) {
         console.error("Error deleting meeting:", error);
         throw error;
+    }
+}
+
+export async function updateMeetingHash(meetingId: string, documentHash: string) {
+    try {
+        const docRef = doc(db, "meetings", meetingId);
+        await updateDoc(docRef, {
+            documentHash
+        });
+        console.log("Document hash saved:", documentHash.substring(0, 16) + "...");
+    } catch (error) {
+        console.error("Error updating document hash:", error);
     }
 }
 
