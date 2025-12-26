@@ -79,7 +79,7 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
                 <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>History & Sessions</p>
             </div>
 
-            <div className="custom-scroll" style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+            <div style={{ padding: '1rem' }}>
                 {loading ? (
                     <div style={{ textAlign: 'center', color: '#64748b', marginTop: '1rem' }}>불러오는 중...</div>
                 ) : (

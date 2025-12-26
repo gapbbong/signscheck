@@ -526,8 +526,25 @@ export default function Home() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 300px', flex: 1, overflow: 'hidden' }}>
 
-        <aside style={{ borderRight: '1px solid hsla(var(--glass-border) / 0.3)', padding: '1rem', display: 'flex', flexDirection: 'column', overflowY: 'auto', maxHeight: 'calc(100vh - 50px)' }}>
-          <OverviewPanel onSelectMeeting={handleSelectMeeting} currentMeetingId={meetingId} />
+        <aside className="custom-sidebar-scroll" style={{
+          borderRight: '1px solid hsla(var(--glass-border) / 0.3)',
+          padding: '1rem',
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'auto',
+          height: '100%',
+          backgroundColor: 'rgba(15, 23, 42, 0.4)',
+          position: 'relative'
+        }}>
+          <style jsx>{`
+            .custom-sidebar-scroll::-webkit-scrollbar { width: 8px; }
+            .custom-sidebar-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+            .custom-sidebar-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; border: 1px solid rgba(255,255,255,0.1); }
+            .custom-sidebar-scroll::-webkit-scrollbar-thumb:hover { background: #60a5fa; }
+          `}</style>
+          <div style={{ flexShrink: 0 }}>
+            <OverviewPanel onSelectMeeting={handleSelectMeeting} currentMeetingId={meetingId} />
+          </div>
 
           {(!config || config.allowAttachments) && (
             <div
@@ -544,7 +561,8 @@ export default function Home() {
                 transition: 'all 0.2s',
                 cursor: attachmentFile ? 'default' : 'pointer',
                 position: 'relative',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                flexShrink: 0  // [New] Prevent shrinking
               }}
             >
               {!attachmentFile && (
