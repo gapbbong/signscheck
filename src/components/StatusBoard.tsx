@@ -311,7 +311,7 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                     <div key={attendee.id} style={{
                         display: 'flex',
                         alignItems: 'center',
-                        padding: '1rem 1.5rem',
+                        padding: '0.6rem 1.5rem',
                         borderBottom: '1px solid hsla(var(--glass-border) / 0.3)',
                         backgroundColor: attendee.selected ? 'rgba(59, 130, 246, 0.05)' : 'transparent',
                         transition: 'background 0.2s'
@@ -328,7 +328,7 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                         <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 500, color: '#f8fafc' }}>{attendee.name}</div>
                             <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                                {attendee.phone || <span style={{ color: '#ef4444' }}>이름이나 전화번호 없음</span>}
+                                {attendee.phone || ''}
                             </div>
                         </div>
 
