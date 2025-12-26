@@ -4,6 +4,10 @@ import { useEffect } from "react";
 
 export default function TawkToWidget() {
     useEffect(() => {
+        // Set language to Korean
+        (window as any).Tawk_API = (window as any).Tawk_API || {};
+        (window as any).Tawk_API.locale = 'ko';
+
         // Tawk.to script
         const script = document.createElement("script");
         script.async = true;
