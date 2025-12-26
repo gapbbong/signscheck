@@ -13,10 +13,12 @@ interface Props {
     attendees: ExtendedAttendee[];
     onToggle: (id: string) => void;
     onAdd: (name: string) => void;
-    onBulkUpdate: (text: string) => void; // [New]
+    onBulkUpdate: (text: string) => void;
+    onSelectAll: () => void; // [New]
+    onDeselectAll: () => void; // [New]
 }
 
-export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate }: Props) {
+export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, onSelectAll, onDeselectAll }: Props) {
     const [showBulk, setShowBulk] = useState(false);
     const [bulkText, setBulkText] = useState("");
 
@@ -184,6 +186,24 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate }
                     </div>
                 )}
             </div>
+
+            {/* Selection Controls */}
+            {attendees.length > 0 && (
+                <div style={{ padding: '0.75rem 1.5rem', display: 'flex', gap: '0.75rem', borderTop: '1px solid hsla(var(--glass-border) / 0.3)' }}>
+                    <button
+                        onClick={onSelectAll}
+                        style={{ flex: 1, fontSize: '0.8rem', padding: '0.4rem', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                        전체 선택
+                    </button>
+                    <button
+                        onClick={onDeselectAll}
+                        style={{ flex: 1, fontSize: '0.8rem', padding: '0.4rem', background: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                        전체 해제
+                    </button>
+                </div>
+            )}
 
             {/* Manual Add Section */}
             <div style={{ padding: '1rem', borderTop: '1px solid hsla(var(--glass-border) / 0.5)' }}>

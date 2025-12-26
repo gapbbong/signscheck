@@ -176,7 +176,20 @@ export default function Home() {
           });
         }
 
-        setAttendees(restoredAttendees);
+        // Initial Deselect for Signed Attendees
+        const qStat = query(collection(db, "requests"), where("meetingId", "==", selectedMeetingId));
+        const statSnap = await getDocs(qStat);
+        const signedPhones = new Set();
+        statSnap.forEach(doc => {
+          if (doc.data().status === 'signed') signedPhones.add(doc.data().phone);
+        });
+
+        const updatedAttendees = restoredAttendees.map(a => ({
+          ...a,
+          selected: (signedPhones.has(a.phone) || a.status === 'signed') ? false : true
+        }));
+
+        setAttendees(updatedAttendees);
 
       } catch (error) {
         console.error("Failed to restore meeting:", error);
@@ -243,6 +256,14 @@ export default function Home() {
 
   const handleToggleAttendee = (id: string) => {
     setAttendees(prev => prev.map(a => a.id === id ? { ...a, selected: !a.selected } : a));
+  };
+
+  const handleSelectAll = () => {
+    setAttendees(prev => prev.map(a => ({ ...a, selected: true })));
+  };
+
+  const handleDeselectAll = () => {
+    setAttendees(prev => prev.map(a => ({ ...a, selected: false })));
   };
 
   const handleAddAttendee = async (name: string) => {
@@ -603,6 +624,8 @@ export default function Home() {
             onToggle={handleToggleAttendee}
             onAdd={handleAddAttendee}
             onBulkUpdate={handleBulkUpdate}
+            onSelectAll={handleSelectAll}
+            onDeselectAll={handleDeselectAll}
           />
         </aside>
 
