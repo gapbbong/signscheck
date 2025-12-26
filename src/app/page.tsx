@@ -270,16 +270,22 @@ export default function Home() {
     }
   };
 
-  const handleToggleAttendee = (id: string) => {
-    setAttendees(prev => prev.map(a => a.id === id ? { ...a, selected: !a.selected } : a));
+  const handleToggleAttendee = async (id: string) => {
+    const updated = attendees.map(a => a.id === id ? { ...a, selected: !a.selected } : a);
+    setAttendees(updated);
+    if (meetingId) await updateMeetingAttendees(meetingId, updated);
   };
 
-  const handleSelectAll = () => {
-    setAttendees(prev => prev.map(a => ({ ...a, selected: true })));
+  const handleSelectAll = async () => {
+    const updated = attendees.map(a => ({ ...a, selected: true }));
+    setAttendees(updated);
+    if (meetingId) await updateMeetingAttendees(meetingId, updated);
   };
 
-  const handleDeselectAll = () => {
-    setAttendees(prev => prev.map(a => ({ ...a, selected: false })));
+  const handleDeselectAll = async () => {
+    const updated = attendees.map(a => ({ ...a, selected: false }));
+    setAttendees(updated);
+    if (meetingId) await updateMeetingAttendees(meetingId, updated);
   };
 
   const handleAddAttendee = async (name: string) => {
@@ -299,7 +305,12 @@ export default function Home() {
     } catch (e) {
       console.warn("Manual lookup failed:", e);
     }
-    setAttendees(prev => [newAttendee, ...prev]);
+    const nextList = [newAttendee, ...attendees];
+    setAttendees(nextList);
+
+    if (meetingId) {
+      await updateMeetingAttendees(meetingId, nextList);
+    }
   };
 
   const handleAttachmentUpload = async (file: File) => {
@@ -429,7 +440,7 @@ export default function Home() {
   };
 
   // [New] Attendee Template
-  const handleLoadTemplate = (templateAttendees: { name: string; phone: string | null }[]) => {
+  const handleLoadTemplate = async (templateAttendees: { name: string; phone: string | null }[]) => {
     const formatted = templateAttendees.map((a, idx) => ({
       ...a,
       id: `tpl_${Date.now()}_${idx}`,
@@ -438,21 +449,39 @@ export default function Home() {
       confidence: 1.0
     }));
 
-    setAttendees(prev => {
-      const existingKeys = new Set(prev.map(p => `${p.name}_${p.phone}`));
-      const toAdd = formatted.filter(f => !existingKeys.has(`${f.name}_${f.phone}`));
+    let nextAttendees: (Attendee & { id: string; selected: boolean; status: string })[] = [];
 
-      // Also update selection for existing ones if they are in the template
-      const templateKeys = new Set(templateAttendees.map(t => `${t.name}_${t.phone}`));
+    setAttendees(prev => {
+      const existingKeys = new Set(prev.map(p => `${p.name}_${normalizePhone(p.phone)}`));
+      const toAdd = formatted.filter(f => !existingKeys.has(`${f.name}_${normalizePhone(f.phone)}`));
+
+      // Also update phone/selection for existing ones
+      const templateMap = new Map(templateAttendees.map(t => [t.name, t.phone]));
       const updatedPrev = prev.map(p => {
-        if (templateKeys.has(`${p.name}_${p.phone}`)) {
-          return { ...p, selected: true };
+        const templatePhone = templateMap.get(p.name);
+        if (templatePhone) {
+          // If name matches, update selection and phone (if empty)
+          return {
+            ...p,
+            selected: true,
+            phone: p.phone || templatePhone
+          };
         }
         return p;
       });
 
-      return [...updatedPrev, ...toAdd];
+      nextAttendees = [...updatedPrev, ...toAdd];
+      return nextAttendees;
     });
+
+    // Persistent Save if in a meeting
+    if (meetingId && nextAttendees.length > 0) {
+      console.log("Saving template-added attendees to meeting:", meetingId);
+      await updateMeetingAttendees(meetingId, nextAttendees);
+      alert(`${templateAttendees.length}명의 템플릿 정보가 현재 회의에 적용 및 저장되었습니다.`);
+    } else {
+      alert(`${templateAttendees.length}명의 템플릿 정보가 적용되었습니다.`);
+    }
   };
 
   // [New] Bulk Update
