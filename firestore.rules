@@ -9,13 +9,15 @@ service cloud.firestore {
       allow create: if request.auth != null;
     }
     
-    // Requests Collection: Public can read (tokenized by ID), only Host can create/update
+    // Requests Collection: Public can read, attendee can sign, only Host can create/delete
     match /requests/{requestId} {
       allow read: if true; 
       
-      // Only host can create/update
-      allow create, update: if request.auth != null && 
-                               request.auth.uid == (resource == null ? request.resource.data.hostUid : resource.data.hostUid);
+      // Allow host to update everything, attendee to update status/signature if pending
+      allow update: if (request.auth != null && request.auth.uid == (resource == null ? request.resource.data.hostUid : resource.data.hostUid)) ||
+                       (resource.data.status == 'pending' && request.resource.data.status == 'signed');
+      
+      allow create: if request.auth != null;
       
       // Prevent deletion of signed requests
       allow delete: if request.auth != null && 

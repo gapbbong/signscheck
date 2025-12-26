@@ -306,8 +306,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const col = index % cols;
                     const row = Math.floor(index / cols);
                     return {
-                        x: 50 + col * (200 + 10),
-                        y: 100 + row * (80 + 10)
+                        x: 50 + col * (140 + 10),
+                        y: 100 + row * (50 + 10)
                     };
                 };
 
@@ -321,8 +321,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pdfY = pageHeight - (currentCanvasY / scale);
 
                 // Draw Image
-                const targetWidth = 200 / scale;
-                const targetHeight = 80 / scale;
+                const targetWidth = 140 / scale;
+                const targetHeight = 50 / scale;
 
                 page.drawImage(sigImage, {
                     x: pdfX,
@@ -440,13 +440,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             <canvas ref={canvasRef} style={{ display: 'block' }} />
 
             {/* Signature Overlay Layer */}
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
                 {signedAttendees.map((attendee, index) => {
                     const uniqueId = attendee.id || index.toString();
 
                     // Grid Fallback
-                    const boxWidth = 200; // [Update] Increased for wider signatures
-                    const boxHeight = 80; // [Update] Increased height
+                    const boxWidth = 140; // [Update] Optimized size
+                    const boxHeight = 50; // [Update] Optimized size
                     const gap = 10;
                     const cols = 4;
                     const col = index % cols;

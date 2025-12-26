@@ -217,7 +217,7 @@ export default function SignPage() {
                 {/* 1. Main PDF Preview */}
                 <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>서명할 문서 확인 (Preview)</label>
-                    <div style={{ width: '100%', height: '1100px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                    <div style={{ width: '100%', height: '500px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                         {requestData.mainPdfUrl ? (
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
@@ -234,7 +234,7 @@ export default function SignPage() {
                 {requestData.attachmentUrl && (
                     <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>첨부파일 (안내문)</label>
-                        <div style={{ width: '100%', height: '1100px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                        <div style={{ width: '100%', height: '500px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.attachmentUrl)}&embedded=true`}
                                 style={{ width: '100%', height: '100%', border: 'none' }}
