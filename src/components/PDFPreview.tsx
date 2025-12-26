@@ -372,35 +372,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
         >
             {/* Toolbar */}
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <div style={{
-                    fontSize: '0.75rem', color: '#fff', backgroundColor: 'rgba(0,0,0,0.5)',
-                    padding: '4px 8px', borderRadius: '4px', backdropFilter: 'blur(2px)'
-                }}>
-                    💡 팁: 🖱️드래그로 이동 | <kbd style={{ background: '#334155', padding: '0 2px' }}>Ctrl</kbd>+<kbd style={{ background: '#334155', padding: '0 2px' }}>방향키</kbd>로 전체 미세조정
-                </div>
-
-                {/* Clean Save Button */}
-                <button
-                    onClick={handleDownload}
-                    disabled={isDownloading}
-                    style={{
-                        backgroundColor: isDownloading ? '#94a3b8' : '#22c55e',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: '4px',
-                        padding: '0.3rem 0.8rem',
-                        cursor: isDownloading ? 'not-allowed' : 'pointer',
-                        fontSize: '0.8rem',
-                        fontWeight: 'bold',
-                        backdropFilter: 'blur(4px)',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                    }}
-                >
-                    {isDownloading ? 'Processing...' : '💾 Save Clean PDF'}
-                </button>
 
                 {/* Offset Controls */}
                 <div style={{ display: 'flex', gap: '5px', background: 'rgba(255,255,255,0.8)', padding: '4px', borderRadius: '4px', backdropFilter: 'blur(4px)' }}>
@@ -434,6 +405,29 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     }}
                 >
                     ↻ Rotate
+                </button>
+
+                {/* Clean Save Button */}
+                <button
+                    onClick={handleDownload}
+                    disabled={isDownloading}
+                    style={{
+                        backgroundColor: isDownloading ? '#94a3b8' : '#22c55e',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        padding: '0.3rem 0.8rem',
+                        cursor: isDownloading ? 'not-allowed' : 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: 'bold',
+                        backdropFilter: 'blur(4px)',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                    }}
+                >
+                    {isDownloading ? 'Processing...' : '💾 Save PDF'}
                 </button>
             </div>
 
