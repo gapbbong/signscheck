@@ -441,26 +441,27 @@ export default function Home() {
 
   // [New] Attendee Template
   const handleLoadTemplate = async (templateAttendees: { name: string; phone: string | null }[]) => {
-    const formatted = templateAttendees.map((a, idx) => ({
-      ...a,
-      id: `tpl_${Date.now()}_${idx}`,
-      selected: true,
-      status: 'pending',
-      confidence: 1.0
-    }));
-
     let nextAttendees: (Attendee & { id: string; selected: boolean; status: string })[] = [];
 
     setAttendees(prev => {
-      const existingKeys = new Set(prev.map(p => `${p.name}_${normalizePhone(p.phone)}`));
-      const toAdd = formatted.filter(f => !existingKeys.has(`${f.name}_${normalizePhone(f.phone)}`));
+      const existingNames = new Set(prev.map(p => p.name.trim()));
 
-      // Also update phone/selection for existing ones
-      const templateMap = new Map(templateAttendees.map(t => [t.name, t.phone]));
+      // 1. Identify truly new people (names not in current list)
+      const toAdd = templateAttendees
+        .filter(t => !existingNames.has(t.name.trim()))
+        .map((a, idx) => ({
+          ...a,
+          id: `tpl_${Date.now()}_${idx}`,
+          selected: true,
+          status: 'pending',
+          confidence: 1.0
+        }));
+
+      // 2. Update existing people (matches by name)
+      const templateMap = new Map(templateAttendees.map(t => [t.name.trim(), t.phone]));
       const updatedPrev = prev.map(p => {
-        const templatePhone = templateMap.get(p.name);
+        const templatePhone = templateMap.get(p.name.trim());
         if (templatePhone) {
-          // If name matches, update selection and phone (if empty)
           return {
             ...p,
             selected: true,
@@ -476,9 +477,8 @@ export default function Home() {
 
     // Persistent Save if in a meeting
     if (meetingId && nextAttendees.length > 0) {
-      console.log("Saving template-added attendees to meeting:", meetingId);
       await updateMeetingAttendees(meetingId, nextAttendees);
-      alert(`${templateAttendees.length}명의 템플릿 정보가 현재 회의에 적용 및 저장되었습니다.`);
+      alert(`${templateAttendees.length}명의 템플릿 정보가 적용 및 저장되었습니다.`);
     } else {
       alert(`${templateAttendees.length}명의 템플릿 정보가 적용되었습니다.`);
     }
