@@ -24,13 +24,8 @@ export default function AdminPage() {
     const [filter, setFilter] = useState<string>("all");
 
     useEffect(() => {
-        if (!user) {
-            router.push("/");
-            return;
-        }
-
         loadAnalytics();
-    }, [user]);
+    }, []);
 
     const loadAnalytics = async () => {
         setLoading(true);
