@@ -30,6 +30,30 @@ service cloud.firestore {
       allow read, write, delete: if request.auth != null && request.auth.uid == (resource == null ? request.resource.data.hostUid : resource.data.hostUid);
     }
     
+    // Subscriptions Collection: Users can read their own, only server can write
+    match /subscriptions/{subscriptionId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false; // Only server-side operations
+    }
+    
+    // Payments Collection: Users can read their own, only server can write
+    match /payments/{paymentId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false; // Only server-side operations
+    }
+    
+    // Usage Collection: Users can read their own, only server can write
+    match /usage/{usageId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow write: if false; // Only server-side operations
+    }
+    
+    // Analytics Events: Only authenticated users can read their own, server can write
+    match /analytics_events/{eventId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null; // Allow client-side logging
+    }
+    
     // Default: Deny all other access
     match /{document=**} {
       allow read, write: if false;

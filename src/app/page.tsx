@@ -15,6 +15,8 @@ import { collection, query, onSnapshot, orderBy, getDocs, where } from 'firebase
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
+import { canCreateMeeting, incrementMeetingCount } from "@/lib/subscription-service";
+import { logMeetingCreated, logBulkAddUsed, logEvent, logUserLogin } from "@/lib/analytics-service";
 
 import SimulationModal from "@/components/SimulationModal";
 // [SSR Fix] Import PDFPreview dynamically to avoid DOMMatrix error during build
@@ -227,6 +229,17 @@ export default function Home() {
     setPdfFile(file);
 
     try {
+      // [New] Check usage limits
+      const usageCheck = await canCreateMeeting(user.uid);
+      if (!usageCheck.allowed) {
+        alert(usageCheck.reason);
+        if (confirm("Pro로 업그레이드하시겠습니까?")) {
+          window.location.href = "/pricing";
+        }
+        setIsProcessing(false);
+        return;
+      }
+
       // [New] Upload PDF to Storage
       console.log("Uploading original PDF to Storage...");
       const pdfStorageRef = ref(storage, `meetings/${Date.now()}_${file.name}`);
@@ -260,6 +273,12 @@ export default function Home() {
 
       // Save extracted attendees to Meeting Doc
       await updateMeetingAttendees(newMeetingId, formatted);
+
+      // [New] Increment usage count
+      await incrementMeetingCount(user.uid);
+
+      // [Analytics] Log meeting creation
+      await logMeetingCreated(user.uid, newMeetingId, formatted.length, file.size);
 
     } catch (error: any) {
       console.error(error);
@@ -549,6 +568,8 @@ export default function Home() {
       setTimeout(() => {
         if (matchedCount > 0) {
           alert(`${matchedCount}명의 정보를 업데이트했습니다.\n(매칭 예시: ${matchedNames.slice(0, 5).join(', ')})`);
+          // [Analytics] Log bulk add usage
+          if (user) logBulkAddUsed(user.uid, matchedCount);
         } else {
           alert("일치하는 이름을 찾지 못했습니다.");
         }
