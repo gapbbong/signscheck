@@ -220,7 +220,7 @@ export default function SignPage() {
         <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', color: '#0f172a' }}>
             <header style={{ padding: '1.5rem', borderBottom: '1px solid #e2e8f0', backgroundColor: '#fff', textAlign: 'center' }}>
                 <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#3b82f6' }}>
-                    {requestData.hostName}님이 {requestData.name}님에게 서명 요청을 보냈습니다.
+                    {requestData.name}님에게 서명 요청 왔습니다.
                 </h1>
             </header>
 
@@ -249,7 +249,17 @@ export default function SignPage() {
                             {txtContent ? (
                                 <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: '#334155', fontFamily: 'inherit' }}>{txtContent}</pre>
                             ) : requestData.attachmentUrl.toLowerCase().includes('.txt') ? (
-                                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>텍스트를 불러오고 있습니다...</div>
+                                <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}>
+                                    <div style={{ color: '#94a3b8' }}>텍스트를 불러오고 있습니다...</div>
+                                    <a
+                                        href={requestData.attachmentUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ padding: '0.5rem 1rem', backgroundColor: '#3b82f6', color: '#fff', borderRadius: '0.5rem', textDecoration: 'none', fontSize: '0.8rem' }}
+                                    >
+                                        내용이 보이지 않으면 여기를 클릭 (새창)
+                                    </a>
+                                </div>
                             ) : (
                                 <iframe
                                     src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.attachmentUrl)}&embedded=true`}
