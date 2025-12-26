@@ -21,6 +21,12 @@ import SimulationModal from "@/components/SimulationModal";
 import dynamic from 'next/dynamic';
 const PDFPreview = dynamic(() => import("@/components/PDFPreview"), { ssr: false });
 
+// Helper to normalize phone numbers for comparison
+const normalizePhone = (phone: string | null) => {
+  if (!phone) return "";
+  return phone.replace(/[^0-9]/g, "");
+};
+
 export default function Home() {
   const { user, signOut } = useAuth();
 
@@ -177,18 +183,28 @@ export default function Home() {
         }
 
         // Initial Deselect for Signed Attendees
+        console.log("Starting auto-deselect logic for meeting:", selectedMeetingId);
         const qStat = query(collection(db, "requests"), where("meetingId", "==", selectedMeetingId));
         const statSnap = await getDocs(qStat);
-        const signedPhones = new Set();
+        const signedNormalizedPhones = new Set();
         statSnap.forEach(doc => {
-          if (doc.data().status === 'signed') signedPhones.add(doc.data().phone);
+          const data = doc.data();
+          if (data.status === 'signed') {
+            const norm = normalizePhone(data.phone);
+            if (norm) signedNormalizedPhones.add(norm);
+          }
         });
 
-        const updatedAttendees = restoredAttendees.map(a => ({
-          ...a,
-          selected: (signedPhones.has(a.phone) || a.status === 'signed') ? false : true
-        }));
+        const updatedAttendees = restoredAttendees.map(a => {
+          const normPhone = normalizePhone(a.phone);
+          const isSigned = signedNormalizedPhones.has(normPhone) || a.status === 'signed';
+          return {
+            ...a,
+            selected: isSigned ? false : true
+          };
+        });
 
+        console.log("Initial selection updated. Signed hidden:", signedNormalizedPhones.size);
         setAttendees(updatedAttendees);
 
       } catch (error) {

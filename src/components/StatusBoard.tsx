@@ -130,14 +130,32 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                 </div>
             )}
 
-            <div style={{ padding: '1.5rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.5)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 600 }}>참석자 목록 <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400 }}>({attendees.length}명)</span></h3>
-                <button
-                    onClick={() => setShowBulk(true)}
-                    style={{ fontSize: '0.8rem', color: '#60a5fa', background: 'none', border: '1px solid #60a5fa', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer' }}
-                >
-                    일괄 등록
-                </button>
+            <div style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.5)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>참석자 목록 <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400 }}>({attendees.length}명)</span></h3>
+                    <button
+                        onClick={() => setShowBulk(true)}
+                        style={{ fontSize: '0.8rem', color: '#60a5fa', background: 'none', border: '1px solid #60a5fa', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
+                    >
+                        일괄 등록
+                    </button>
+                </div>
+                {attendees.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button
+                            onClick={onSelectAll}
+                            style={{ flex: 1, fontSize: '0.75rem', padding: '0.4rem', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            전체 선택
+                        </button>
+                        <button
+                            onClick={onDeselectAll}
+                            style={{ flex: 1, fontSize: '0.75rem', padding: '0.4rem', background: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            전체 해제
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="custom-scroll" style={{ flex: 1, overflowY: 'auto' }}>
@@ -187,23 +205,6 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                 )}
             </div>
 
-            {/* Selection Controls */}
-            {attendees.length > 0 && (
-                <div style={{ padding: '0.75rem 1.5rem', display: 'flex', gap: '0.75rem', borderTop: '1px solid hsla(var(--glass-border) / 0.3)' }}>
-                    <button
-                        onClick={onSelectAll}
-                        style={{ flex: 1, fontSize: '0.8rem', padding: '0.4rem', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid #3b82f6', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                        전체 선택
-                    </button>
-                    <button
-                        onClick={onDeselectAll}
-                        style={{ flex: 1, fontSize: '0.8rem', padding: '0.4rem', background: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', border: '1px solid #475569', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                        전체 해제
-                    </button>
-                </div>
-            )}
 
             {/* Manual Add Section */}
             <div style={{ padding: '1rem', borderTop: '1px solid hsla(var(--glass-border) / 0.5)' }}>
