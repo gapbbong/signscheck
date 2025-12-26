@@ -15,6 +15,7 @@ export default function SignPage() {
     const [requestData, setRequestData] = useState<any>(null);
     const [submitted, setSubmitted] = useState(false);
     const [isChecked, setIsChecked] = useState(false);
+    const [txtContent, setTxtContent] = useState<string | null>(null); // [New] For .txt attachments
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -73,6 +74,16 @@ export default function SignPage() {
 
         fetchRequest();
     }, [id]);
+
+    // [New] Handle .txt attachment content
+    useEffect(() => {
+        if (requestData?.attachmentUrl && requestData.attachmentUrl.toLowerCase().includes('.txt')) {
+            fetch(requestData.attachmentUrl)
+                .then(res => res.text())
+                .then(text => setTxtContent(text))
+                .catch(err => console.error("Txt fetch error:", err));
+        }
+    }, [requestData?.attachmentUrl]);
 
     // [New] Set Canvas dimensions safely
     useEffect(() => {
@@ -217,7 +228,7 @@ export default function SignPage() {
                 {/* 1. Main PDF Preview */}
                 <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>서명할 문서 확인 (Preview)</label>
-                    <div style={{ width: '100%', height: '500px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                    <div style={{ width: '100%', minHeight: '300px', height: 'auto', maxHeight: '600px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', aspectRatio: '1 / 1.4' }}>
                         {requestData.mainPdfUrl ? (
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
@@ -234,12 +245,18 @@ export default function SignPage() {
                 {requestData.attachmentUrl && (
                     <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>첨부파일 (안내문)</label>
-                        <div style={{ width: '100%', height: '500px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                            <iframe
-                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.attachmentUrl)}&embedded=true`}
-                                style={{ width: '100%', height: '100%', border: 'none' }}
-                                title="Attachment Preview"
-                            />
+                        <div style={{ width: '100%', minHeight: '100px', height: 'auto', maxHeight: '400px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'auto', padding: '1rem' }}>
+                            {txtContent ? (
+                                <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: '#334155', fontFamily: 'inherit' }}>{txtContent}</pre>
+                            ) : requestData.attachmentUrl.toLowerCase().includes('.txt') ? (
+                                <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>텍스트를 불러오고 있습니다...</div>
+                            ) : (
+                                <iframe
+                                    src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.attachmentUrl)}&embedded=true`}
+                                    style={{ width: '100%', height: '100%', border: 'none' }}
+                                    title="Attachment Preview"
+                                />
+                            )}
                         </div>
                         <div style={{ textAlign: 'center', padding: '0.5rem' }}>
                             <a href={requestData.attachmentUrl} download target="_blank" rel="noopener noreferrer" style={{ color: '#3b82f6', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.9rem' }}>
