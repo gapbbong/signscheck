@@ -40,8 +40,7 @@ export async function saveTemplate(hostUid: string, name: string, attendees: { n
 export async function getTemplates(hostUid: string): Promise<AttendeeTemplate[]> {
     const q = query(
         collection(db, COLLECTION_NAME),
-        where("hostUid", "==", hostUid),
-        orderBy("createdAt", "desc")
+        where("hostUid", "==", hostUid)
     );
 
     const snapshot = await getDocs(q);

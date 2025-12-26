@@ -43,8 +43,13 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
 
     const fetchTemplates = async () => {
         if (!hostUid) return;
-        const data = await getTemplates(hostUid);
-        setTemplates(data);
+        try {
+            const data = await getTemplates(hostUid);
+            setTemplates(data);
+        } catch (error: any) {
+            console.error("Fetch templates failed:", error);
+            alert(`템플릿을 불러오지 못했습니다: ${error.message}`);
+        }
     };
 
     const handleSaveCurrentAsTemplate = async () => {
