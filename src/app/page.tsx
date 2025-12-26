@@ -355,7 +355,7 @@ export default function Home() {
       }
 
       const promises = selectedAttendees.map(async (attendee) => {
-        const link = await createSignatureRequest(attendee, uploadedAttachmentUrl, currentMeetingId);
+        const link = await createSignatureRequest(attendee, uploadedAttachmentUrl, currentMeetingId, user?.uid || "");
         return `${attendee.name}: ${link}`;
       });
 

@@ -12,15 +12,17 @@ export interface SignatureRequest {
     signatureUrl?: string;
     signedAt?: any;
     attachmentUrl?: string; // [New] Attachment Link
+    hostUid: string; // [Security] Ownership
 }
 
 /**
  * Creates a signature request in Firestore and returns the signing link.
  */
-export async function createSignatureRequest(attendee: Attendee, attachmentUrl?: string, meetingId?: string): Promise<string> {
+export async function createSignatureRequest(attendee: Attendee, attachmentUrl?: string, meetingId?: string, hostUid: string = ""): Promise<string> {
     try {
         const docRef = await addDoc(collection(db, "requests"), {
             meetingId: meetingId || "default",
+            hostUid,
             name: attendee.name,
             phone: attendee.phone,
             status: 'pending',
