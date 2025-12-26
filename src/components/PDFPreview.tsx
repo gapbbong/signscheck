@@ -306,8 +306,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const col = index % cols;
                     const row = Math.floor(index / cols);
                     return {
-                        x: 50 + col * (120 + 10),
-                        y: 100 + row * (60 + 10)
+                        x: 50 + col * (200 + 10),
+                        y: 100 + row * (80 + 10)
                     };
                 };
 
@@ -321,8 +321,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pdfY = pageHeight - (currentCanvasY / scale);
 
                 // Draw Image
-                const targetWidth = 120 / scale;
-                const targetHeight = 60 / scale;
+                const targetWidth = 200 / scale;
+                const targetHeight = 80 / scale;
 
                 page.drawImage(sigImage, {
                     x: pdfX,
@@ -445,8 +445,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const uniqueId = attendee.id || index.toString();
 
                     // Grid Fallback
-                    const boxWidth = 120;
-                    const boxHeight = 60;
+                    const boxWidth = 200; // [Update] Increased for wider signatures
+                    const boxHeight = 80; // [Update] Increased height
                     const gap = 10;
                     const cols = 4;
                     const col = index % cols;
@@ -507,7 +507,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     style={{
                                         maxWidth: '100%',
                                         maxHeight: '100%',
-                                        filter: 'drop-shadow(2px 4px 6px rgba(0,0,0,0.3))',
+                                        mixBlendMode: 'multiply', // [Fix] Makes white background transparent
                                         pointerEvents: 'none'
                                     }}
                                 />

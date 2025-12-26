@@ -161,7 +161,7 @@ export default function SignPage() {
             return;
         }
 
-        const signatureDataUrl = canvasRef.current.toDataURL();
+        const signatureDataUrl = canvasRef.current.toDataURL('image/png'); // Ensure PNG for transparency
 
         localStorage.setItem('lastSignature', signatureDataUrl);
 
