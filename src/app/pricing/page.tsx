@@ -1,5 +1,33 @@
 "use client";
 
+// [HOLD] Payment system temporarily disabled until business registration
+// Uncomment when ready to implement payment
+
+export default function PricingPage() {
+    return (
+        <div style={{
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            padding: '2rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            textAlign: 'center'
+        }}>
+            <div>
+                <h1 style={{ fontSize: '2rem', marginBottom: '1rem' }}>🚧 준비 중</h1>
+                <p style={{ color: '#94a3b8' }}>
+                    Pro 플랜은 곧 출시됩니다!<br />
+                    사용량 분석 후 최적의 가격으로 제공할 예정입니다.
+                </p>
+            </div>
+        </div>
+    );
+}
+
+/* [ORIGINAL CODE - Commented out for now]
+
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
@@ -90,7 +118,7 @@ export default function PricingPage() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem' }}>
-                    {/* Free Plan */}
+                    {/* Free Plan *\/}
                     <div style={{
                         background: 'rgba(255, 255, 255, 0.05)',
                         backdropFilter: 'blur(10px)',
@@ -137,7 +165,7 @@ export default function PricingPage() {
                         </button>
                     </div>
 
-                    {/* Pro Plan */}
+                    {/* Pro Plan *\/}
                     <div style={{
                         background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                         border: '2px solid rgba(255, 255, 255, 0.3)',
@@ -211,3 +239,5 @@ export default function PricingPage() {
         </div>
     );
 }
+
+*/
