@@ -25,6 +25,11 @@ service cloud.firestore {
                        resource.data.status != 'signed';
     }
     
+    // Templates Collection: Strictly personal
+    match /templates/{templateId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == (resource == null ? request.resource.data.hostUid : resource.data.hostUid);
+    }
+    
     // Default: Deny all other access
     match /{document=**} {
       allow read, write: if false;

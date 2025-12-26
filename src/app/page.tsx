@@ -428,6 +428,33 @@ export default function Home() {
     }
   };
 
+  // [New] Attendee Template
+  const handleLoadTemplate = (templateAttendees: { name: string; phone: string | null }[]) => {
+    const formatted = templateAttendees.map((a, idx) => ({
+      ...a,
+      id: `tpl_${Date.now()}_${idx}`,
+      selected: true,
+      status: 'pending',
+      confidence: 1.0
+    }));
+
+    setAttendees(prev => {
+      const existingKeys = new Set(prev.map(p => `${p.name}_${p.phone}`));
+      const toAdd = formatted.filter(f => !existingKeys.has(`${f.name}_${f.phone}`));
+
+      // Also update selection for existing ones if they are in the template
+      const templateKeys = new Set(templateAttendees.map(t => `${t.name}_${t.phone}`));
+      const updatedPrev = prev.map(p => {
+        if (templateKeys.has(`${p.name}_${p.phone}`)) {
+          return { ...p, selected: true };
+        }
+        return p;
+      });
+
+      return [...updatedPrev, ...toAdd];
+    });
+  };
+
   // [New] Bulk Update
   const handleBulkUpdate = async (text: string) => {
     if (!text.trim()) return;
@@ -682,6 +709,8 @@ export default function Home() {
             onSend={handleSendRequests}
             sendCount={visibleAttendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent')).length}
             config={config}
+            hostUid={user?.uid}
+            onLoadTemplate={handleLoadTemplate}
           />
         </aside>
 

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Attendee } from "@/lib/gas-service";
 import { AppConfig } from "@/lib/config-service";
+import { AttendeeTemplate, saveTemplate, getTemplates, deleteTemplate } from "@/lib/template-service";
+import { useEffect } from "react";
 
 interface ExtendedAttendee extends Attendee {
     id: string;
@@ -20,12 +22,71 @@ interface Props {
     onSend?: () => void;
     sendCount?: number;
     config?: AppConfig | null;
+    hostUid?: string;
+    onLoadTemplate?: (attendees: { name: string; phone: string | null }[]) => void;
 }
 
-export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, onSelectAll, onDeselectAll, onSend, sendCount = 0, config }: Props) {
+export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, onSelectAll, onDeselectAll, onSend, sendCount = 0, config, hostUid, onLoadTemplate }: Props) {
     const isNewMeetingDisabled = config?.allowNewMeetings === false;
     const [showBulk, setShowBulk] = useState(false);
     const [bulkText, setBulkText] = useState("");
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
+    const [templates, setTemplates] = useState<AttendeeTemplate[]>([]);
+    const [templateName, setTemplateName] = useState("");
+    const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+
+    useEffect(() => {
+        if (showTemplateModal && hostUid) {
+            fetchTemplates();
+        }
+    }, [showTemplateModal, hostUid]);
+
+    const fetchTemplates = async () => {
+        if (!hostUid) return;
+        const data = await getTemplates(hostUid);
+        setTemplates(data);
+    };
+
+    const handleSaveCurrentAsTemplate = async () => {
+        if (!hostUid) {
+            alert("로그인이 필요합니다.");
+            return;
+        }
+        if (attendees.length === 0) {
+            alert("저장할 인원이 없습니다.");
+            return;
+        }
+
+        const name = prompt("템플릿 이름을 입력하세요 (예: 1학년 교직원):");
+        if (!name || !name.trim()) return;
+
+        setIsSavingTemplate(true);
+        try {
+            const list = attendees.map(a => ({ name: a.name, phone: a.phone }));
+            await saveTemplate(hostUid, name.trim(), list);
+            alert("템플릿이 저장되었습니다.");
+            if (showTemplateModal) fetchTemplates();
+        } catch (error) {
+            console.error(error);
+            alert("저장 실패");
+        } finally {
+            setIsSavingTemplate(false);
+        }
+    };
+
+    const handleApplyTemplate = (template: AttendeeTemplate) => {
+        if (onLoadTemplate) {
+            onLoadTemplate(template.attendees);
+            setShowTemplateModal(false);
+        }
+    };
+
+    const handleDeleteTemplate = async (id: string) => {
+        if (confirm("이 템플릿을 삭제하시겠습니까?")) {
+            await deleteTemplate(id);
+            fetchTemplates();
+        }
+    };
 
     return (
         <section className="glass-panel" style={{ padding: '0', overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}>
@@ -135,15 +196,89 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                 </div>
             )}
 
+            {/* Template Modal Overlay */}
+            {showTemplateModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                    backgroundColor: 'rgba(0, 0, 0, 0.7)', zIndex: 9999,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)'
+                }}>
+                    <div style={{
+                        width: '90%', maxWidth: '450px', backgroundColor: '#1e293b',
+                        padding: '1.5rem', borderRadius: '0.75rem',
+                        boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+                        display: 'flex', flexDirection: 'column', color: '#f8fafc',
+                        border: '1px solid #475569'
+                    }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <h3 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: 0 }}>📋 내 명단 템플릿</h3>
+                            <button onClick={() => setShowTemplateModal(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '1.2rem' }}>✕</button>
+                        </div>
+
+                        <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '1.5rem' }} className="custom-scroll">
+                            {templates.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>저장된 템플릿이 없습니다.</div>
+                            ) : (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {templates.map(t => (
+                                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <button
+                                                onClick={() => handleApplyTemplate(t)}
+                                                style={{
+                                                    flex: 1, textAlign: 'left', padding: '0.75rem 1rem',
+                                                    backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)',
+                                                    borderRadius: '0.5rem', color: '#e2e8f0', cursor: 'pointer'
+                                                }}
+                                            >
+                                                <div style={{ fontWeight: 600 }}>{t.name}</div>
+                                                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{t.attendees.length}명 저장됨</div>
+                                            </button>
+                                            <button
+                                                onClick={() => handleDeleteTemplate(t.id)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem' }}
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        <button
+                            onClick={handleSaveCurrentAsTemplate}
+                            disabled={isSavingTemplate || attendees.length === 0}
+                            style={{
+                                width: '100%', padding: '0.75rem',
+                                background: 'linear-gradient(to right, #3b82f6, #8b5cf6)', color: 'white',
+                                border: 'none', borderRadius: '0.5rem',
+                                cursor: 'pointer', fontWeight: 600, opacity: (isSavingTemplate || attendees.length === 0) ? 0.5 : 1
+                            }}
+                        >
+                            {isSavingTemplate ? "저장 중..." : "💾 현재 명단을 새 템플릿으로 저장"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.5)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>참석자 목록 <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400 }}>({attendees.length}명)</span></h3>
-                    <button
-                        onClick={() => setShowBulk(true)}
-                        style={{ fontSize: '0.8rem', color: '#60a5fa', background: 'none', border: '1px solid #60a5fa', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
-                    >
-                        일괄 등록
-                    </button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button
+                            onClick={() => setShowTemplateModal(true)}
+                            title="템플릿 불러오기/저장"
+                            style={{ fontSize: '0.8rem', color: '#8b5cf6', background: 'none', border: '1px solid #8b5cf6', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
+                        >
+                            📋 템플릿
+                        </button>
+                        <button
+                            onClick={() => setShowBulk(true)}
+                            style={{ fontSize: '0.8rem', color: '#60a5fa', background: 'none', border: '1px solid #60a5fa', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
+                        >
+                            일괄 등록
+                        </button>
+                    </div>
                 </div>
                 {attendees.length > 0 && (
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
