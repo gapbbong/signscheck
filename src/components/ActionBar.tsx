@@ -1,11 +1,16 @@
 "use client";
 
+import { AppConfig } from "@/lib/config-service";
+
 interface Props {
     onSend?: () => void;
     count?: number;
+    config?: AppConfig | null;
 }
 
-export default function ActionBar({ onSend, count = 0 }: Props) {
+export default function ActionBar({ onSend, count = 0, config }: Props) {
+    const isNewMeetingDisabled = config?.allowNewMeetings === false;
+
     return (
         <footer style={{
             height: '80px',
@@ -19,11 +24,18 @@ export default function ActionBar({ onSend, count = 0 }: Props) {
         }}>
             <button
                 onClick={onSend}
-                disabled={count === 0}
+                disabled={count === 0 || isNewMeetingDisabled}
                 className="btn-primary"
-                style={{ width: '100%', maxWidth: '600px', fontSize: '1.2rem', padding: '1rem', opacity: count === 0 ? 0.5 : 1, cursor: count === 0 ? 'not-allowed' : 'pointer' }}
+                style={{
+                    width: '100%',
+                    maxWidth: '600px',
+                    fontSize: '1.2rem',
+                    padding: '1rem',
+                    opacity: (count === 0 || isNewMeetingDisabled) ? 0.5 : 1,
+                    cursor: (count === 0 || isNewMeetingDisabled) ? 'not-allowed' : 'pointer'
+                }}
             >
-                🚀 {count > 0 ? `${count}명에게 요청 보내기` : '요청 보내기'} (Click)
+                🚀 {isNewMeetingDisabled ? "신규 회의 생성 제한됨" : (count > 0 ? `${count}명에게 요청 보내기` : '요청 보내기')} (Click)
             </button>
         </footer>
     );

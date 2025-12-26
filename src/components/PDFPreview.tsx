@@ -4,14 +4,16 @@ import { useEffect, useRef, useState } from 'react';
 // [SSR Fix] Remove top-level pdfjsLib import to avoid DOMMatrix error during build
 import { PDFDocument } from 'pdf-lib';
 import { Attendee } from '@/lib/gas-service';
+import { updateMeetingHash } from '@/lib/meeting-service';
 
 interface Props {
     file: File;
     attendees: (Attendee & { id?: string; status: string; signatureUrl?: string })[];
     onConfirm?: () => void; // [New] Callback for Spacebar action
+    meetingId?: string | null; // [New] To save document hash
 }
 
-export default function PDFPreview({ file, attendees, onConfirm }: Props) {
+export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Props) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [scale, setScale] = useState(1.0);
@@ -341,8 +343,9 @@ export default function PDFPreview({ file, attendees, onConfirm }: Props) {
             console.log('📌 Document Hash (SHA-256):', documentHash);
 
             // 5. Save Hash to Firestore (if meetingId available)
-            // Note: meetingId would need to be passed as a prop to PDFPreview
-            // For now, we'll log it. Integration with meeting-service will be next step.
+            if (meetingId) {
+                await updateMeetingHash(meetingId, documentHash);
+            }
 
             // 6. Download PDF
             const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });

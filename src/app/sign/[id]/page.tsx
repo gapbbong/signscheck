@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { db } from '@/lib/firebase';
+import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
 
@@ -10,12 +11,21 @@ export default function SignPage() {
     const id = params?.id as string;
 
     const [loading, setLoading] = useState(true);
+    const [config, setConfig] = useState<AppConfig | null>(null);
     const [requestData, setRequestData] = useState<any>(null);
     const [submitted, setSubmitted] = useState(false);
     const [isChecked, setIsChecked] = useState(false);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+
+    // Subscribe to remote config
+    useEffect(() => {
+        const unsubscribeConfig = subscribeToConfig((remoteConfig) => {
+            setConfig(remoteConfig);
+        });
+        return () => unsubscribeConfig();
+    }, []);
 
     // 1. Fetch Request Data
     useEffect(() => {
@@ -167,6 +177,19 @@ export default function SignPage() {
             alert("서명 제출 실패");
         }
     };
+
+    if (config?.isMaintenance) {
+        return (
+            <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a', color: '#fff', textAlign: 'center', padding: '20px' }}>
+                <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🚧</div>
+                <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '10px' }}>시스템 점검 중입니다</h1>
+                <p style={{ color: '#94a3b8', maxWidth: '500px' }}>
+                    더 나은 서명 품질을 위해 잠시 점검을 진행하고 있습니다.<br />
+                    잠시 후 다시 접속해 주세요.
+                </p>
+            </div>
+        );
+    }
 
     if (loading) return <div style={{ padding: '2rem', color: '#fff', backgroundColor: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>데이터를 불러오고 있습니다...</div>;
     if (!requestData) return <div style={{ padding: '2rem', color: '#fff', backgroundColor: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>요청을 찾을 수 없습니다.</div>;

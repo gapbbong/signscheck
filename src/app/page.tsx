@@ -14,6 +14,7 @@ import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachm
 import { collection, query, onSnapshot, orderBy, getDocs, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
+import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 
 import SimulationModal from "@/components/SimulationModal";
 // [SSR Fix] Import PDFPreview dynamically to avoid DOMMatrix error during build
@@ -25,6 +26,7 @@ export default function Home() {
 
   // State
   const [attendees, setAttendees] = useState<(Attendee & { id: string; selected: boolean; status: string })[]>([]);
+  const [config, setConfig] = useState<AppConfig | null>(null);
   const [statusMap, setStatusMap] = useState<Record<string, { status: string; signatureUrl?: string }>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
@@ -40,6 +42,14 @@ export default function Home() {
   // Simulator State
   const [showModal, setShowModal] = useState(false);
   const [simulationLinks, setSimulationLinks] = useState<string[]>([]);
+
+  // Subscribe to remote config
+  useEffect(() => {
+    const unsubscribeConfig = subscribeToConfig((remoteConfig) => {
+      setConfig(remoteConfig);
+    });
+    return () => unsubscribeConfig();
+  }, []);
 
   // Firestore Listener with Session Filtering
   useEffect(() => {
@@ -441,6 +451,22 @@ export default function Home() {
     }
   };
 
+  if (config?.isMaintenance) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a', color: '#fff', textAlign: 'center', padding: '20px' }}>
+        <div style={{ fontSize: '4rem', marginBottom: '20px' }}>🚧</div>
+        <h1 style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '10px' }}>시스템 점검 중입니다</h1>
+        <p style={{ color: '#94a3b8', maxWidth: '500px' }}>
+          더 나은 서비스를 위해 현재 시스템 점검을 진행하고 있습니다.<br />
+          잠시 후 다시 접속해 주세요. 불편을 드려 죄송합니다.
+        </p>
+        <div style={{ marginTop: '30px', padding: '10px 20px', backgroundColor: '#1e293b', borderRadius: '8px', color: '#3b82f6', fontSize: '0.875rem' }}>
+          관리자 문의: support@signscheck.com
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'hsl(var(--background))', overflow: 'hidden' }}>
       <LoginModal />
@@ -466,52 +492,54 @@ export default function Home() {
         <aside style={{ borderRight: '1px solid hsla(var(--glass-border) / 0.3)', padding: '1rem', display: 'flex', flexDirection: 'column' }}>
           <OverviewPanel onSelectMeeting={handleSelectMeeting} currentMeetingId={meetingId} />
 
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            style={{
-              marginTop: '1.5rem',
-              border: `2px dashed ${isDragging ? '#60a5fa' : '#334155'}`,
-              borderRadius: '0.5rem',
-              padding: '1rem',
-              textAlign: 'center',
-              backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'rgba(15, 23, 42, 0.3)',
-              transition: 'all 0.2s',
-              cursor: attachmentFile ? 'default' : 'pointer',
-              position: 'relative',
-              overflow: 'hidden'
-            }}
-          >
-            {!attachmentFile && (
-              <input
-                type="file"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) handleAttachmentUpload(e.target.files[0]);
-                }}
-                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 1 }}
-              />
-            )}
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📎</div>
-            {attachmentFile ? (
-              <div style={{ position: 'relative', zIndex: 2 }}>
-                <div style={{ fontSize: '0.85rem', color: '#60a5fa', fontWeight: 'bold' }}>파일 선택됨</div>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8', wordBreak: 'break-all', marginTop: '0.2rem' }}>{attachmentFile.name}</div>
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleRemoveAttachment(); }}
-                  style={{ marginTop: '0.7rem', padding: '0.3rem 0.8rem', fontSize: '0.75rem', color: '#fff', backgroundColor: '#ef4444', border: 'none', borderRadius: '0.3rem', fontWeight: 'bold', cursor: 'pointer' }}
-                >
-                  파일 삭제하기
-                </button>
-              </div>
-            ) : (
-              <div>
-                <div style={{ fontSize: '0.85rem', color: '#e2e8f0', marginBottom: '0.2rem' }}>상세안내 파일 첨부</div>
-                <div style={{ fontSize: '0.7rem', color: '#64748b' }}>여기로 파일을 드래그하거나<br />클릭하여 업로드하세요</div>
-              </div>
-            )}
-          </div>
+          {(!config || config.allowAttachments) && (
+            <div
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              style={{
+                marginTop: '1.5rem',
+                border: `2px dashed ${isDragging ? '#60a5fa' : '#334155'}`,
+                borderRadius: '0.5rem',
+                padding: '1rem',
+                textAlign: 'center',
+                backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                transition: 'all 0.2s',
+                cursor: attachmentFile ? 'default' : 'pointer',
+                position: 'relative',
+                overflow: 'hidden'
+              }}
+            >
+              {!attachmentFile && (
+                <input
+                  type="file"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) handleAttachmentUpload(e.target.files[0]);
+                  }}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 1 }}
+                />
+              )}
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📎</div>
+              {attachmentFile ? (
+                <div style={{ position: 'relative', zIndex: 2 }}>
+                  <div style={{ fontSize: '0.85rem', color: '#60a5fa', fontWeight: 'bold' }}>파일 선택됨</div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', wordBreak: 'break-all', marginTop: '0.2rem' }}>{attachmentFile.name}</div>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleRemoveAttachment(); }}
+                    style={{ marginTop: '0.7rem', padding: '0.3rem 0.8rem', fontSize: '0.75rem', color: '#fff', backgroundColor: '#ef4444', border: 'none', borderRadius: '0.3rem', fontWeight: 'bold', cursor: 'pointer' }}
+                  >
+                    파일 삭제하기
+                  </button>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: '0.85rem', color: '#e2e8f0', marginBottom: '0.2rem' }}>상세안내 파일 첨부</div>
+                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>여기로 파일을 드래그하거나<br />클릭하여 업로드하세요</div>
+                </div>
+              )}
+            </div>
+          )}
         </aside>
 
         <section style={{ backgroundColor: '#0f172a', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', overflowY: 'auto' }}>
@@ -528,6 +556,7 @@ export default function Home() {
                   file={pdfFile}
                   attendees={visibleAttendees}
                   onConfirm={handleSendRequests}
+                  meetingId={meetingId}
                 />
               </div>
             ) : (
@@ -579,7 +608,7 @@ export default function Home() {
 
       </div>
 
-      <ActionBar onSend={handleSendRequests} count={visibleAttendees.filter(a => a.selected && a.status === 'pending').length} />
+      <ActionBar onSend={handleSendRequests} count={visibleAttendees.filter(a => a.selected && a.status === 'pending').length} config={config} />
     </main>
   );
 }
