@@ -435,7 +435,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 </button>
             </div>
 
-            <canvas ref={canvasRef} style={{ display: 'block' }} />
+            <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: 'auto' }} />
 
             {/* Signature Overlay Layer */}
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>

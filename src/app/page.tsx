@@ -689,7 +689,7 @@ export default function Home() {
         </aside>
 
         <section style={{ backgroundColor: '#0f172a', padding: '1rem 2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', overflowY: 'auto' }}>
-          <div style={{ width: '100%', maxWidth: '1100px' }}>
+          <div style={{ width: '100%', height: '100%' }}>
             {pdfFile ? (
               <div style={{ animation: 'fadeIn 0.5s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
