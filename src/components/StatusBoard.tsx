@@ -201,7 +201,7 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                 </div>
             )}
 
-            {/* Template Modal Overlay */}
+            {/* [Hold] 템플릿 모달 일시 중단
             {showTemplateModal && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
@@ -265,11 +265,13 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                     </div>
                 </div>
             )}
+            */}
 
             <div style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.5)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>참석자 목록 <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400 }}>({attendees.length}명)</span></h3>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        {/* [Hold] 템플릿 기능 일시 중단
                         <button
                             onClick={() => setShowTemplateModal(true)}
                             title="템플릿 불러오기/저장"
@@ -277,6 +279,7 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                         >
                             📋 템플릿
                         </button>
+                        */}
                         <button
                             onClick={() => setShowBulk(true)}
                             style={{ fontSize: '0.8rem', color: '#60a5fa', background: 'none', border: '1px solid #60a5fa', borderRadius: '4px', padding: '2px 8px', cursor: 'pointer' }}
