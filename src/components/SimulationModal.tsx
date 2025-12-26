@@ -62,8 +62,8 @@ export default function SimulationModal({ isOpen, onClose, links }: SimulationMo
                     🚀 전송 완료! (Simulation)
                 </h2>
                 <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>
-                    실제 문자를 보내는 대신, 아래 링크를 생성했습니다.<br />
-                    테스트하고 싶은 링크를 복사해서 접속하세요.
+                    아래 링크를 생성했습니다.<br />
+                    전체를 복사해서 메신저로 전달해 보세요.
                 </p>
 
                 <div style={{

@@ -411,7 +411,7 @@ export default function Home() {
       }
     }
 
-    if (!confirm(`${toSend.length}명에게 서명 요청을 보냅니다 (시뮬레이션).`)) return;
+    // Removed confirmation dialog - users will copy links to messenger
 
     setIsProcessing(true);
     console.log(`Resending/Sending to ${toSend.length} members...`);
