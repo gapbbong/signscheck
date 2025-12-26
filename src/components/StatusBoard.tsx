@@ -66,9 +66,9 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
             await saveTemplate(hostUid, name.trim(), list);
             alert("템플릿이 저장되었습니다.");
             if (showTemplateModal) fetchTemplates();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert("저장 실패");
+            alert(`저장 실패: ${error.message || "알 수 없는 오류"}`);
         } finally {
             setIsSavingTemplate(false);
         }
