@@ -364,13 +364,27 @@ export default function Home() {
   };
 
   const handleSendRequests = async () => {
-    const selectedAttendees = visibleAttendees.filter(a => a.selected && a.status === 'pending');
-    if (selectedAttendees.length === 0) {
+    if (!user) {
+      alert("로그인이 필요합니다.");
+      return;
+    }
+
+    const toSend = attendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent'));
+    if (toSend.length === 0) {
       alert("전송할 대상이 없습니다.");
       return;
     }
 
-    if (!confirm(`${selectedAttendees.length}명에게 서명 요청을 보냅니다 (시뮬레이션).`)) return;
+    if (toSend.some(a => a.status === 'sent')) {
+      if (!confirm("이미 요청을 보낸 분이 포함되어 있습니다. 다시 보내시겠습니까?")) {
+        return;
+      }
+    }
+
+    if (!confirm(`${toSend.length}명에게 서명 요청을 보냅니다 (시뮬레이션).`)) return;
+
+    setIsProcessing(true);
+    console.log(`Resending/Sending to ${toSend.length} members...`);
 
     const currentMeetingId = meetingId || `temp_${Date.now()}`;
 
@@ -391,7 +405,7 @@ export default function Home() {
         }
       }
 
-      const promises = selectedAttendees.map(async (attendee) => {
+      const promises = toSend.map(async (attendee: any) => {
         const link = await createSignatureRequest(attendee, uploadedAttachmentUrl, currentMeetingId, user?.uid || "");
         return `${attendee.name}: ${link}`;
       });
@@ -400,7 +414,7 @@ export default function Home() {
       generatedLinks.push(...results);
 
       setAttendees(prev => prev.map(a => {
-        const wasSelected = selectedAttendees.find(s => s.id === a.id);
+        const wasSelected = toSend.find((s: any) => s.id === a.id);
         return wasSelected ? { ...a, status: 'sent' } : a;
       }));
 
@@ -524,7 +538,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 300px', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 320px', flex: 1, overflow: 'hidden' }}>
 
         <aside className="custom-sidebar-scroll" style={{
           borderRight: '1px solid hsla(var(--glass-border) / 0.3)',
@@ -597,15 +611,15 @@ export default function Home() {
           )}
         </aside>
 
-        <section style={{ backgroundColor: '#0f172a', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', overflowY: 'auto' }}>
-          <div style={{ width: '100%', maxWidth: '900px' }}>
+        <section style={{ backgroundColor: '#0f172a', padding: '1rem 2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', overflowY: 'auto' }}>
+          <div style={{ width: '100%', maxWidth: '1100px' }}>
             {pdfFile ? (
               <div style={{ animation: 'fadeIn 0.5s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <h2 style={{ fontSize: '1rem', color: '#94a3b8', margin: 0 }}>미리보기 (Live Preview)</h2>
                     <span style={{ fontSize: '0.75rem', color: '#64748b', opacity: 0.8 }}>
-                      💡 팁: 🖱️드래그로 이동 | <kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '0 3px', borderRadius: '3px' }}>Ctrl</kbd>+<kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '0 3px', borderRadius: '3px' }}>방향키</kbd>로 전체 미세조정
+                      💡 팁: 🖱️드래그로 이동 | <kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '0 3px', borderRadius: '3px' }}>Ctrl</kbd>+<kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '0 3px', borderRadius: '3px' }}>방향키</kbd>로 받은 서명의 위치 미세조정
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
@@ -665,12 +679,14 @@ export default function Home() {
             onBulkUpdate={handleBulkUpdate}
             onSelectAll={handleSelectAll}
             onDeselectAll={handleDeselectAll}
+            onSend={handleSendRequests}
+            sendCount={visibleAttendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent')).length}
+            config={config}
           />
         </aside>
 
       </div>
 
-      <ActionBar onSend={handleSendRequests} count={visibleAttendees.filter(a => a.selected && a.status === 'pending').length} config={config} />
     </main>
   );
 }

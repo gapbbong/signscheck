@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Attendee } from "@/lib/gas-service";
+import { AppConfig } from "@/lib/config-service";
 
 interface ExtendedAttendee extends Attendee {
     id: string;
@@ -14,11 +15,15 @@ interface Props {
     onToggle: (id: string) => void;
     onAdd: (name: string) => void;
     onBulkUpdate: (text: string) => void;
-    onSelectAll: () => void; // [New]
-    onDeselectAll: () => void; // [New]
+    onSelectAll: () => void;
+    onDeselectAll: () => void;
+    onSend?: () => void;
+    sendCount?: number;
+    config?: AppConfig | null;
 }
 
-export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, onSelectAll, onDeselectAll }: Props) {
+export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, onSelectAll, onDeselectAll, onSend, sendCount = 0, config }: Props) {
+    const isNewMeetingDisabled = config?.allowNewMeetings === false;
     const [showBulk, setShowBulk] = useState(false);
     const [bulkText, setBulkText] = useState("");
 
@@ -249,6 +254,31 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                     </button>
                 </form>
             </div>
+
+            {/* SEND BUTTON Moved Here */}
+            {onSend && (
+                <div style={{ padding: '1rem', borderTop: '1px solid hsla(var(--glass-border) / 0.5)' }}>
+                    <button
+                        onClick={onSend}
+                        disabled={sendCount === 0 || isNewMeetingDisabled}
+                        className="btn-primary"
+                        style={{
+                            width: '100%',
+                            fontSize: '1rem',
+                            padding: '0.8rem',
+                            opacity: (sendCount === 0 || isNewMeetingDisabled) ? 0.5 : 1,
+                            cursor: (sendCount === 0 || isNewMeetingDisabled) ? 'not-allowed' : 'pointer'
+                        }}
+                    >
+                        🚀 {isNewMeetingDisabled ? "제한됨" : (sendCount > 0 ? `${sendCount}명에게 요청 보내기` : '요청 보내기')}
+                    </button>
+                    {sendCount > 0 && (
+                        <div style={{ fontSize: '0.7rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>
+                            이미 전송된 멤버에게는 재전송됩니다.
+                        </div>
+                    )}
+                </div>
+            )}
         </section>
     );
 }
