@@ -370,9 +370,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
         >
-            {/* Toolbar */}
-            <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-
+            {/* Toolbar: Left Side (Controls) */}
+            <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 {/* Offset Controls */}
                 <div style={{ display: 'flex', gap: '5px', background: 'rgba(255,255,255,0.8)', padding: '4px', borderRadius: '4px', backdropFilter: 'blur(4px)' }}>
                     <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155' }}>↔ X:</span>
@@ -401,13 +400,18 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         padding: '0.3rem 0.6rem',
                         cursor: 'pointer',
                         fontSize: '0.8rem',
-                        backdropFilter: 'blur(4px)'
+                        backdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
                     }}
                 >
                     ↻ Rotate
                 </button>
+            </div>
 
-                {/* Clean Save Button */}
+            {/* Toolbar: Right Side (Actions) */}
+            <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
                 <button
                     onClick={handleDownload}
                     disabled={isDownloading}
@@ -416,15 +420,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         color: '#fff',
                         border: 'none',
                         borderRadius: '4px',
-                        padding: '0.3rem 0.8rem',
+                        padding: '0.4rem 1rem',
                         cursor: isDownloading ? 'not-allowed' : 'pointer',
-                        fontSize: '0.8rem',
+                        fontSize: '0.85rem',
                         fontWeight: 'bold',
                         backdropFilter: 'blur(4px)',
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '4px'
+                        gap: '6px'
                     }}
                 >
                     {isDownloading ? 'Processing...' : '💾 Save PDF'}
