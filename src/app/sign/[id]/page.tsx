@@ -79,7 +79,7 @@ export default function SignPage() {
         if (!loading && requestData && canvasRef.current) {
             const canvas = canvasRef.current;
             canvas.width = canvas.offsetWidth || window.innerWidth - 48;
-            canvas.height = 400;
+            canvas.height = 200; // [Update] Half height for mobile optimization
         }
     }, [loading, requestData]);
 
@@ -282,7 +282,7 @@ export default function SignPage() {
                         </button>
                     </div>
 
-                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: '400px' }}>
+                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: '200px' }}>
                         <canvas
                             ref={canvasRef}
                             style={{ touchAction: 'none', width: '100%', height: '100%' }}

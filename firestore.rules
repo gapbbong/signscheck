@@ -2,19 +2,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Meetings Collection: Only host can access
+    // Meetings Collection: Host can write, Public can read (for signature page preview)
     match /meetings/{meetingId} {
-      allow read, write: if request.auth != null && 
-                            request.auth.uid == (resource == null ? request.resource.data.hostUid : resource.data.hostUid);
+      allow read: if true; 
+      allow write: if request.auth != null && request.auth.uid == (resource == null ? request.resource.data.hostUid : resource.data.hostUid);
       allow create: if request.auth != null;
     }
     
-    // Requests Collection: Host sees all, attendees see only theirs
+    // Requests Collection: Public can read (tokenized by ID), only Host can create/update
     match /requests/{requestId} {
-      // Host can read all requests for their meetings
-      allow read: if request.auth != null && 
-                     (request.auth.uid == resource.data.hostUid ||
-                      request.auth.token.phone_number == resource.data.phone);
+      allow read: if true; 
       
       // Only host can create/update
       allow create, update: if request.auth != null && 

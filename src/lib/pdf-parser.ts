@@ -54,8 +54,16 @@ export async function extractStructuredTextFromPDF(file: File): Promise<PDFTextI
 export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
     const potentialNames = new Set<string>();
 
-    // 1. Find Anchors
-    const anchors = items.filter(item => item.str.includes("참석자") || item.str.includes("attendee"));
+    // 1. Find Anchors (참석자, 명단, 성명 등 키워드 기반)
+    const anchors = items.filter(item =>
+        item.str.includes("참석자") ||
+        item.str.includes("명단") ||
+        item.str.includes("성명") ||
+        item.str.includes("참가자") ||
+        item.str.includes("인원") ||
+        item.str.includes("attendee") ||
+        item.str.includes("participant")
+    );
 
     // Detect vertical "참석자" (split into single chars) if normal anchor fails
     // This is hard without complex logic, so we rely on Fallback if strictly vertical.
