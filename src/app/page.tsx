@@ -526,7 +526,7 @@ export default function Home() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 300px', flex: 1, overflow: 'hidden' }}>
 
-        <aside style={{ borderRight: '1px solid hsla(var(--glass-border) / 0.3)', padding: '1rem', display: 'flex', flexDirection: 'column' }}>
+        <aside style={{ borderRight: '1px solid hsla(var(--glass-border) / 0.3)', padding: '1rem', display: 'flex', flexDirection: 'column', overflowY: 'auto', maxHeight: 'calc(100vh - 50px)' }}>
           <OverviewPanel onSelectMeeting={handleSelectMeeting} currentMeetingId={meetingId} />
 
           {(!config || config.allowAttachments) && (

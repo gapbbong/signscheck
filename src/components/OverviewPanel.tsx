@@ -44,7 +44,7 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
     };
 
     return (
-        <section className="glass-panel" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <section className="glass-panel" style={{ height: 'auto', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <style jsx>{`
                 /* Custom Scrollbar */
                 .custom-scroll::-webkit-scrollbar {
