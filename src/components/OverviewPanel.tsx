@@ -139,17 +139,6 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
                 )}
             </div>
 
-            <div style={{ marginTop: 'auto', padding: '1.5rem', borderTop: '1px solid hsla(var(--glass-border) / 0.5)' }}>
-                {user && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #60a5fa, #a78bfa)' }}></div>
-                        <div>
-                            <div style={{ fontSize: '0.9rem', color: '#e2e8f0' }}>{user.displayName}</div>
-                            <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Host</div>
-                        </div>
-                    </div>
-                )}
-            </div>
         </section>
     );
 }
