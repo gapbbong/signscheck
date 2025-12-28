@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
+import { PDFDocument } from 'pdf-lib';
 
 export default function SignPage() {
     const params = useParams();
@@ -15,11 +16,14 @@ export default function SignPage() {
     const [requestData, setRequestData] = useState<any>(null);
     const [submitted, setSubmitted] = useState(false);
     const [isChecked, setIsChecked] = useState(false);
-    const [txtContent, setTxtContent] = useState<string | null>(null); // [New] For .txt attachments
+    const [txtContent, setTxtContent] = useState<string | null>(null);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
     const [hasSignature, setHasSignature] = useState(false);
+
+    // [New] Dynamic aspect ratio for PDF preview
+    const [pdfAspectRatio, setPdfAspectRatio] = useState<number | null>(null);
 
     // Subscribe to remote config
     useEffect(() => {
@@ -42,7 +46,6 @@ export default function SignPage() {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
 
-                    // [New] Fetch related Meeting data for hostName/pdfUrl/attachmentUrl
                     if (data.meetingId) {
                         try {
                             const meetingRef = doc(db, "meetings", data.meetingId);
@@ -76,6 +79,27 @@ export default function SignPage() {
         fetchRequest();
     }, [id]);
 
+    // [New] Fetch PDF and calculate aspect ratio
+    useEffect(() => {
+        if (!requestData?.mainPdfUrl) return;
+
+        const fetchPdfMetadata = async () => {
+            try {
+                const response = await fetch(requestData.mainPdfUrl);
+                const arrayBuffer = await response.arrayBuffer();
+                const pdfDoc = await PDFDocument.load(arrayBuffer);
+                const page = pdfDoc.getPages()[0];
+                const { width, height } = page.getSize();
+                setPdfAspectRatio(width / height);
+            } catch (e) {
+                console.error("Failed to load PDF metadata", e);
+                // Fallback to A4ish if failed
+                setPdfAspectRatio(1 / 1.414);
+            }
+        };
+        fetchPdfMetadata();
+    }, [requestData?.mainPdfUrl]);
+
     // [New] Handle .txt attachment content
     useEffect(() => {
         if (requestData?.attachmentUrl && requestData.attachmentUrl.toLowerCase().includes('.txt')) {
@@ -86,13 +110,14 @@ export default function SignPage() {
         }
     }, [requestData?.attachmentUrl]);
 
-    // [New] Set Canvas dimensions safely
+    // [New] Set Canvas dimensions safely (3:1 ratio)
     useEffect(() => {
         if (!loading && requestData && canvasRef.current) {
             const canvas = canvasRef.current;
             const width = canvas.offsetWidth || window.innerWidth - 48;
             canvas.width = width;
             canvas.height = Math.floor(width / 3); // 3:1 비율
+            setHasSignature(false); // 초기화
         }
     }, [loading, requestData]);
 
@@ -119,7 +144,7 @@ export default function SignPage() {
         setIsDrawing(true);
         const { offsetX, offsetY } = getCoordinates(e, canvas);
 
-        ctx.lineWidth = 12;
+        ctx.lineWidth = 4; // 얇게 조정
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
@@ -145,7 +170,6 @@ export default function SignPage() {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             ctx?.closePath();
-            // 서명 여부 확인
             checkSignature();
         }
     };
@@ -233,25 +257,6 @@ export default function SignPage() {
             return;
         }
 
-        // 빈 서명 검증
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const pixels = imageData.data;
-            let hasContent = false;
-            for (let i = 0; i < pixels.length; i += 4) {
-                if (pixels[i + 3] > 0) { // 알파 채널 확인
-                    hasContent = true;
-                    break;
-                }
-            }
-            if (!hasContent) {
-                alert("서명이 누락되었습니다. 서명란에 서명을 입력해 주세요.");
-                return;
-            }
-        }
-
         const signatureDataUrl = canvasRef.current.toDataURL('image/png');
 
         localStorage.setItem('lastSignature', signatureDataUrl);
@@ -311,7 +316,16 @@ export default function SignPage() {
                 {/* 1. Main PDF Preview */}
                 <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>서명할 문서 확인 (Preview)</label>
-                    <div style={{ width: '100%', minHeight: '300px', height: 'auto', maxHeight: '600px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', aspectRatio: '1 / 1.4' }}>
+                    <div style={{
+                        width: '100%',
+                        minHeight: '300px',
+                        // Auto-adjust height based on aspect ratio, maxing out at 80vh to prevent too long scrolling
+                        aspectRatio: pdfAspectRatio ? `${pdfAspectRatio}` : '1 / 1.4',
+                        backgroundColor: '#f8fafc',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #e2e8f0',
+                        overflow: 'hidden'
+                    }}>
                         {requestData.mainPdfUrl ? (
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
@@ -393,7 +407,7 @@ export default function SignPage() {
                         </button>
                     </div>
 
-                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: '150px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
+                    <div style={{ backgroundColor: '#fff', borderRadius: '1rem', border: '2px solid #cbd5e1', overflow: 'hidden', position: 'relative', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
                         <canvas
                             ref={canvasRef}
                             style={{ touchAction: 'none', width: '100%', height: '100%' }}
