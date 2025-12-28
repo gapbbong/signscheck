@@ -1,5 +1,8 @@
 "use client";
 
+// 이 페이지는 항상 최신 상태를 유지해야 하므로 dynamic 설정 시도 (Client Component라 무시될 수 있음)
+export const dynamic = 'force-dynamic';
+
 import { useEffect, useState, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
@@ -24,6 +27,9 @@ export default function SignPage() {
 
     // [New] Dynamic aspect ratio for PDF preview
     const [pdfAspectRatio, setPdfAspectRatio] = useState<number | null>(null);
+
+    // [New] Error Message State
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
     // Subscribe to remote config
     useEffect(() => {
@@ -68,9 +74,11 @@ export default function SignPage() {
                     setRequestData(data);
                 } else {
                     console.error("Request not found:", id);
+                    setErrorMsg("Request document not found in DB.");
                 }
             } catch (error: any) {
                 console.error("Fetch error:", error);
+                setErrorMsg(error?.message || "Unknown fetching error");
             } finally {
                 setLoading(false);
             }
@@ -98,7 +106,6 @@ export default function SignPage() {
                 // Fallback to A4ish if failed
                 setPdfAspectRatio((1 / 1.414) * 1.15);
             }
-
         };
         fetchPdfMetadata();
     }, [requestData?.mainPdfUrl]);
@@ -289,12 +296,26 @@ export default function SignPage() {
                     더 나은 서명 품질을 위해 잠시 점검을 진행하고 있습니다.<br />
                     잠시 후 다시 접속해 주세요.
                 </p>
+                <div style={{ marginTop: '2rem', fontSize: '0.8rem', color: '#64748b' }}>v0.1.3 (Maint)</div>
             </div>
         );
     }
 
     if (loading) return <div style={{ padding: '2rem', color: '#fff', backgroundColor: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>데이터를 불러오고 있습니다...</div>;
-    if (!requestData) return <div style={{ padding: '2rem', color: '#fff', backgroundColor: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>요청을 찾을 수 없습니다.</div>;
+
+    // 에러 상태에서도 버전 표시
+    if (!requestData) return (
+        <div style={{ padding: '2rem', color: '#fff', backgroundColor: '#0f172a', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>요청을 찾을 수 없습니다.</h2>
+            {errorMsg && (
+                <div style={{ padding: '1rem', backgroundColor: '#ef4444', color: '#fff', borderRadius: '0.5rem', maxWidth: '80%', wordBreak: 'break-all', marginBottom: '1rem' }}>
+                    Error: {errorMsg}
+                </div>
+            )}
+            <div style={{ marginTop: '2rem', fontSize: '0.8rem', color: '#94a3b8' }}>ID: {id}</div>
+            <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#64748b' }}>v0.1.3 (Debug Mode)</div>
+        </div>
+    );
 
     if (submitted) return (
         <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a', color: '#fff', textAlign: 'center', padding: '1.2rem' }}>
@@ -304,6 +325,7 @@ export default function SignPage() {
                 문서 처리가 완료되었습니다.<br />
                 보안을 위해 <b>브라우저 탭(창)을 직접 닫아주세요.</b>
             </p>
+            <div style={{ marginTop: '2rem', fontSize: '0.8rem', color: '#334155' }}>v0.1.3</div>
         </div>
     );
 
@@ -430,10 +452,9 @@ export default function SignPage() {
                 >
                     서명 제출하기
                 </button>
-                <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.7rem', color: '#cbd5e1' }}>v0.1.1 (Rev.3)</div>
+                <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.7rem', color: '#cbd5e1' }}>v0.1.3 (Debug Mode)</div>
             </footer>
 
         </div>
     );
 }
-
