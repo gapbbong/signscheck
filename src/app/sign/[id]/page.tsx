@@ -90,12 +90,15 @@ export default function SignPage() {
                 const pdfDoc = await PDFDocument.load(arrayBuffer);
                 const page = pdfDoc.getPages()[0];
                 const { width, height } = page.getSize();
-                setPdfAspectRatio(width / height);
+                // Google Viewer Toolbar 높이(약 60px) 및 여백을 고려하여 높이를 줄임 (비율 값 증가)
+                // 1.15배는 실험적 수치 (높이 약 13% 감소 효과)
+                setPdfAspectRatio((width / height) * 1.15);
             } catch (e) {
                 console.error("Failed to load PDF metadata", e);
                 // Fallback to A4ish if failed
-                setPdfAspectRatio(1 / 1.414);
+                setPdfAspectRatio((1 / 1.414) * 1.15);
             }
+
         };
         fetchPdfMetadata();
     }, [requestData?.mainPdfUrl]);
