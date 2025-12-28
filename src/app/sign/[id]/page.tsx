@@ -19,6 +19,7 @@ export default function SignPage() {
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+    const [hasSignature, setHasSignature] = useState(false);
 
     // Subscribe to remote config
     useEffect(() => {
@@ -144,6 +145,8 @@ export default function SignPage() {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             ctx?.closePath();
+            // 서명 여부 확인
+            checkSignature();
         }
     };
 
@@ -163,7 +166,25 @@ export default function SignPage() {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             ctx?.clearRect(0, 0, canvas.width, canvas.height);
+            setHasSignature(false);
         }
+    };
+
+    const checkSignature = () => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+        for (let i = 0; i < pixels.length; i += 4) {
+            if (pixels[i + 3] > 0) {
+                setHasSignature(true);
+                return;
+            }
+        }
+        setHasSignature(false);
     };
 
     const getAuditData = async () => {
@@ -360,6 +381,7 @@ export default function SignPage() {
                                         if (ctx) {
                                             ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
                                             ctx.drawImage(img, 0, 0);
+                                            checkSignature();
                                         }
                                     };
                                     img.src = saved;
@@ -386,8 +408,8 @@ export default function SignPage() {
             <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0' }}>
                 <button
                     onClick={handleSubmit}
-                    disabled={!isChecked}
-                    style={{ width: '100%', padding: '1rem', backgroundColor: isChecked ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: isChecked ? 'pointer' : 'not-allowed' }}
+                    disabled={!isChecked || !hasSignature}
+                    style={{ width: '100%', padding: '1rem', backgroundColor: (isChecked && hasSignature) ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: (isChecked && hasSignature) ? 'pointer' : 'not-allowed' }}
                 >
                     서명 제출하기
                 </button>
