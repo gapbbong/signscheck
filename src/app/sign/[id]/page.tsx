@@ -89,8 +89,9 @@ export default function SignPage() {
     useEffect(() => {
         if (!loading && requestData && canvasRef.current) {
             const canvas = canvasRef.current;
-            canvas.width = canvas.offsetWidth || window.innerWidth - 48;
-            canvas.height = 200; // [Update] Half height for mobile optimization
+            const width = canvas.offsetWidth || window.innerWidth - 48;
+            canvas.width = width;
+            canvas.height = Math.floor(width / 3); // 3:1 비율
         }
     }, [loading, requestData]);
 
@@ -209,6 +210,25 @@ export default function SignPage() {
         if (!isChecked) {
             alert("안내사항을 확인하고 체크해주세요.");
             return;
+        }
+
+        // 빈 서명 검증
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const pixels = imageData.data;
+            let hasContent = false;
+            for (let i = 0; i < pixels.length; i += 4) {
+                if (pixels[i + 3] > 0) { // 알파 채널 확인
+                    hasContent = true;
+                    break;
+                }
+            }
+            if (!hasContent) {
+                alert("서명이 누락되었습니다. 서명란에 서명을 입력해 주세요.");
+                return;
+            }
         }
 
         const signatureDataUrl = canvasRef.current.toDataURL('image/png');
@@ -351,7 +371,7 @@ export default function SignPage() {
                         </button>
                     </div>
 
-                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: '200px' }}>
+                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: '150px', maxWidth: '600px', margin: '0 auto', width: '100%' }}>
                         <canvas
                             ref={canvasRef}
                             style={{ touchAction: 'none', width: '100%', height: '100%' }}
