@@ -1,0 +1,2 @@
+# Vercel Build Info
+BUILD_ID=${Date.now()}
