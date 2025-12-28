@@ -430,8 +430,10 @@ export default function SignPage() {
                 >
                     서명 제출하기
                 </button>
+                <div style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.7rem', color: '#cbd5e1' }}>v0.1.1 (Rev.3)</div>
             </footer>
 
         </div>
     );
 }
+
