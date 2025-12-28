@@ -165,6 +165,45 @@ export default function SignPage() {
         }
     };
 
+    const getAuditData = async () => {
+        let ip = "Unknown";
+        try {
+            const res = await fetch('https://api.ipify.org?format=json');
+            const data = await res.json();
+            ip = data.ip;
+        } catch (e) { console.error("IP fetch failed", e); }
+
+        let location = null;
+        try {
+            const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+                navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 });
+            });
+            location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        } catch (e) {
+            console.warn("Location permission denied or failed", e);
+        }
+
+        const nav = (navigator as any);
+        const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
+
+        return {
+            ip,
+            userAgent: navigator.userAgent,
+            screen: {
+                width: window.screen.width,
+                height: window.screen.height,
+                dpr: window.devicePixelRatio
+            },
+            network: connection ? {
+                effectiveType: connection.effectiveType,
+                downlink: connection.downlink,
+                rtt: connection.rtt
+            } : null,
+            location,
+            os: (navigator as any).platform || "Unknown"
+        };
+    };
+
     const handleSubmit = async () => {
         if (!canvasRef.current) return;
         if (!isChecked) {
@@ -172,15 +211,18 @@ export default function SignPage() {
             return;
         }
 
-        const signatureDataUrl = canvasRef.current.toDataURL('image/png'); // Ensure PNG for transparency
+        const signatureDataUrl = canvasRef.current.toDataURL('image/png');
 
         localStorage.setItem('lastSignature', signatureDataUrl);
 
         try {
+            const auditData = await getAuditData();
+
             await updateDoc(doc(db, "requests", id), {
                 status: 'signed',
                 signedAt: serverTimestamp(),
-                signatureUrl: signatureDataUrl
+                signatureUrl: signatureDataUrl,
+                auditData: auditData
             });
             setSubmitted(true);
         } catch (error) {

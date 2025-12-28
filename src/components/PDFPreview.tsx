@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 // [SSR Fix] Remove top-level pdfjsLib import to avoid DOMMatrix error during build
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { Attendee } from '@/lib/gas-service';
 import { updateMeetingHash } from '@/lib/meeting-service';
 
 interface Props {
     file: File;
-    attendees: (Attendee & { id?: string; status: string; signatureUrl?: string })[];
+    attendees: (Attendee & { id?: string; status: string; signatureUrl?: string; auditData?: any })[];
     onConfirm?: () => void; // [New] Callback for Spacebar action
     meetingId?: string | null; // [New] To save document hash
 }
@@ -19,6 +19,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const [scale, setScale] = useState(1.0);
     const [rotation, setRotation] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [includeCertificate, setIncludeCertificate] = useState(false);
 
     // [New] Dynamic Offset Configuration
     const [offsetX, setOffsetX] = useState(100);
@@ -255,6 +256,63 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     };
 
     // [New] Clean Save - Download Signed PDF
+    const generateCertificatePDF = async (signedAttendees: any[]) => {
+        const certDoc = await PDFDocument.create();
+        const font = await certDoc.embedFont(StandardFonts.Helvetica);
+        const fontBold = await certDoc.embedFont(StandardFonts.HelveticaBold);
+
+        // Add a page
+        let page = certDoc.addPage([595.28, 841.89]); // A4
+        const { height } = page.getSize();
+        let y = height - 50;
+
+        const drawText = (text: string, x: number, size = 10, isBold = false) => {
+            page.drawText(text, { x, y, size, font: isBold ? fontBold : font, color: rgb(0, 0, 0) });
+            y -= size + 5;
+        };
+
+        drawText("E-Signature Audit Report (Certificate of Completion)", 50, 18, true);
+        y -= 20;
+        drawText(`Generated at: ${new Date().toLocaleString()}`, 50, 10);
+        drawText(`Document ID: ${meetingId || "N/A"}`, 50, 10);
+        y -= 30;
+
+        for (const attendee of signedAttendees) {
+            if (y < 100) {
+                page = certDoc.addPage([595.28, 841.89]);
+                y = height - 50;
+            }
+
+            drawText(`[Signer: ${attendee.name}]`, 50, 12, true);
+            drawText(`- Status: Signed`, 60);
+            drawText(`- Signed At: ${attendee.signedAt ? (attendee.signedAt.toDate ? attendee.signedAt.toDate().toLocaleString() : new Date().toLocaleString()) : "N/A"}`, 60);
+
+            if (attendee.auditData) {
+                const ad = attendee.auditData;
+                drawText(`- IP Address: ${ad.ip || "Unknown"}`, 60);
+                drawText(`- Browser: ${ad.userAgent?.slice(0, 80)}...`, 60);
+                drawText(`- Device: ${ad.os || "Unknown"} | Screen: ${ad.screen?.width}x${ad.screen?.height} (DPR: ${ad.screen?.dpr})`, 60);
+                if (ad.network) {
+                    drawText(`- Network: ${ad.network.effectiveType} | Downlink: ${ad.network.downlink}Mbps`, 60);
+                }
+                if (ad.location) {
+                    drawText(`- Geolocation: ${ad.location.lat}, ${ad.location.lng}`, 60);
+                }
+            } else {
+                drawText(`- Audit Data: No detailed data available for this signer.`, 60);
+            }
+            y -= 20;
+        }
+
+        const certBytes = await certDoc.save();
+        const blob = new Blob([new Uint8Array(certBytes)], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Certificate_${file.name}`;
+        link.click();
+    };
+
     const handleDownload = async () => {
         if (!file || signedAttendees.length === 0) {
             alert("서명이 완료된 참가자가 없습니다.");
@@ -263,97 +321,71 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
         setIsDownloading(true);
         try {
-            // 1. Load Original PDF
+            // 1. Generate Signed PDF
             const arrayBuffer = await file.arrayBuffer();
             const pdfDoc = await PDFDocument.load(arrayBuffer);
-            const page = pdfDoc.getPages()[0]; // MVP: Page 1 only
+            const page = pdfDoc.getPages()[0];
             const { height: pageHeight } = page.getSize();
 
-            // 2. Embed Signatures
             for (const attendee of signedAttendees) {
                 if (!attendee.signatureUrl) continue;
-
-                // Load signature image
-                // Load signature image
                 const uniqueId = attendee.id || attendee.phone || `temp-${attendee.name}`;
-                if (!uniqueId) continue; // Safety
-
                 const sigImageBytes = await fetch(attendee.signatureUrl).then(res => res.arrayBuffer());
                 const sigImage = await pdfDoc.embedPng(sigImageBytes);
 
-                // Recalculate Initial Position for reference
-                const foundCoord = nameCoordinates[attendee.name];
-                let currentCanvasX = 0;
-                let currentCanvasY = 0;
-
-                // Helper to get initial canvas pos
                 const getInitPos = () => {
                     if (foundCoord && scale) {
                         const pdfX = foundCoord.x;
                         const pdfY = foundCoord.y;
-
                         const canvasX = pdfX * scale;
                         const canvasY = (foundCoord.pageHeight - pdfY) * scale;
-
-                        return {
-                            x: canvasX + offsetX,
-                            y: canvasY + offsetY
-                        };
+                        return { x: canvasX + offsetX, y: canvasY + offsetY };
                     }
-                    // Fallback grid
                     const index = attendees.indexOf(attendee);
                     const cols = 4;
                     const col = index % cols;
                     const row = Math.floor(index / cols);
-                    return {
-                        x: 50 + col * (140 + 10),
-                        y: 100 + row * (50 + 10)
-                    };
+                    return { x: 50 + col * (140 + 10), y: 100 + row * (50 + 10) };
                 };
 
+                const foundCoord = nameCoordinates[attendee.name];
                 const initPos = getInitPos();
                 const pos = positions[uniqueId] || initPos;
-                currentCanvasX = pos.x;
-                currentCanvasY = pos.y;
-
-                // Project Back to PDF Coordinates
+                const currentCanvasX = pos.x;
+                const currentCanvasY = pos.y;
                 const pdfX = currentCanvasX / scale;
                 const pdfY = pageHeight - (currentCanvasY / scale);
-
-                // Draw Image
                 const targetWidth = 140 / scale;
                 const targetHeight = 50 / scale;
 
                 page.drawImage(sigImage, {
                     x: pdfX,
-                    y: pdfY - targetHeight, // Draw from bottom-left corner of image. pos.y is Top of box.
+                    y: pdfY - targetHeight,
                     width: targetWidth,
                     height: targetHeight,
                 });
             }
 
-            // 3. Save PDF to bytes
             const pdfBytes = await pdfDoc.save();
-
-            // 4. Generate SHA-256 Hash (Digital Fingerprint)
             const hashBuffer = await crypto.subtle.digest('SHA-256', pdfBytes as any);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const documentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-            console.log('📌 Document Hash (SHA-256):', documentHash);
-
-            // 5. Save Hash to Firestore (if meetingId available)
             if (meetingId) {
                 await updateMeetingHash(meetingId, documentHash);
             }
 
-            // 6. Download PDF
-            const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
+            const blob = new Blob([new Uint8Array(pdfBytes)], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
             link.download = `Signed_${file.name}`;
             link.click();
+
+            // 2. Generate Certificate if requested
+            if (includeCertificate) {
+                await generateCertificatePDF(signedAttendees);
+            }
 
         } catch (error) {
             console.error("Clean Save Failed:", error);
@@ -412,6 +444,29 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
             {/* Toolbar: Right Side (Actions) */}
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
+                <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    backgroundColor: 'rgba(255,255,255,0.8)',
+                    padding: '6px 10px',
+                    borderRadius: '4px',
+                    backdropFilter: 'blur(4px)',
+                    fontSize: '0.8rem',
+                    color: '#334155',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    border: '1px solid #cbd5e1'
+                }}>
+                    <input
+                        type="checkbox"
+                        checked={includeCertificate}
+                        onChange={(e) => setIncludeCertificate(e.target.checked)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    전자서명 증명서 별도 저장 (Audit Trail)
+                </label>
+
                 <button
                     onClick={handleDownload}
                     disabled={isDownloading}

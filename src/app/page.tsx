@@ -33,9 +33,9 @@ export default function Home() {
   const { user, signOut } = useAuth();
 
   // State
-  const [attendees, setAttendees] = useState<(Attendee & { id: string; selected: boolean; status: string })[]>([]);
+  const [attendees, setAttendees] = useState<(Attendee & { id: string; selected: boolean; status: string; auditData?: any })[]>([]);
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [statusMap, setStatusMap] = useState<Record<string, { status: string; signatureUrl?: string }>>({});
+  const [statusMap, setStatusMap] = useState<Record<string, { status: string; signatureUrl?: string; auditData?: any }>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
@@ -73,14 +73,15 @@ export default function Home() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const map: Record<string, { status: string; signatureUrl?: string }> = {};
+      const map: Record<string, { status: string; signatureUrl?: string; auditData?: any }> = {};
 
       snapshot.forEach(doc => {
         const data = doc.data();
         if (data.phone && !map[data.phone]) {
           map[data.phone] = {
             status: data.status,
-            signatureUrl: data.signatureUrl
+            signatureUrl: data.signatureUrl,
+            auditData: data.auditData
           };
         }
       });
@@ -97,7 +98,8 @@ export default function Home() {
     return {
       ...a,
       status: liveData?.status || a.status,
-      signatureUrl: liveData?.signatureUrl
+      signatureUrl: liveData?.signatureUrl,
+      auditData: liveData?.auditData
     };
   });
 
