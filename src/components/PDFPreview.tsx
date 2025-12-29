@@ -125,12 +125,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5], tw = item.width || item.transform[0] * 2;
-                            let bestDeltaPdf = 250; // Dynamic fallback
+                            let bestDeltaPdf = 280; // Default delta if auto-analysis fails
                             if (headerDeltas.length > 0) {
                                 const closestHeader = headerDeltas.reduce((prev, curr) =>
                                     Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
                                 );
-                                // Base delta from name-center to sign-center
                                 bestDeltaPdf = closestHeader.deltaPdf;
                             }
                             coords[matchedAttendee.name] = {
@@ -261,14 +260,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const canvasW = foundCoord.w * scale;
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 250) * scale;
 
-                        // Center of signature box should be at (nameCenter + delta)
                         const nameCenter = canvasX + (canvasW / 2);
-                        const targetSignCenter = nameCenter + signCenterDelta;
+                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
                         const sigBoxWidth = 140 * scale;
 
+                        // X: move to sign column center
+                        // Y: +10px to move slightly down from baseline to center in row
                         return {
-                            x: targetSignCenter - (sigBoxWidth / 2) + offsetX,
-                            y: canvasY - 15 + offsetY
+                            x: nameCenter + signCenterDelta - (sigBoxWidth / 2) + offsetX,
+                            y: canvasY + 10 + offsetY
                         };
                     }
                     const index = attendees.findIndex(a => a.name === attendee.name);
@@ -351,11 +351,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const canvasW = foundCoord.w * scale;
 
                         const nameCenter = canvasX + canvasW / 2;
-                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 250) * scale;
+                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
 
                         initLeft = nameCenter + signCenterDelta - (boxWidth / 2) + offsetX;
-                        // Center vertically: canvasY is baseline, -15px to center in row
-                        initTop = canvasY - 15 + offsetY;
+                        // Center vertically: canvasY is baseline, +10px to sit lower in the row
+                        initTop = canvasY + 10 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
@@ -379,7 +379,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             }}
                         >
                             <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-                                <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))', pointerEvents: 'none' }} />
+                                <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
                             </div>
                             <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
                                 {attendee.name}
