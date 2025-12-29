@@ -348,10 +348,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     const foundCoord = nameCoordinates[attendee.name];
 
-                    // DEBUG: Force 이갑종 to bottom-right
+                    // DEBUG: Force 이갑종 to document bottom-right
                     if (attendee.name === '이갑종') {
-                        initLeft = 9999;
-                        initTop = 9999;
+                        initLeft = 700;
+                        initTop = 950;
                     } else if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
