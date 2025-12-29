@@ -134,9 +134,15 @@ export default function SimulationModal({ isOpen, onClose, links }: SimulationMo
                                 return nameA.localeCompare(nameB, 'ko');
                             });
 
-                            const allText = sortedLinks.join('\n\n') + '\n\n';
+                            const allText = sortedLinks.map(l => {
+                                const parts = l.split(': ');
+                                const name = parts[0];
+                                const url = parts[1] || "";
+                                return `${name}\n${url}`;
+                            }).join('\n\n') + '\n';
+
                             navigator.clipboard.writeText(allText);
-                            alert("가나다순으로 정렬되어 복사되었습니다! 📋");
+                            alert("메신저 최적화 가나다순 복사가 완료되었습니다! 📋");
                         }}
                         style={{
                             backgroundColor: '#0f172a',
