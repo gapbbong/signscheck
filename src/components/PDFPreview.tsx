@@ -119,12 +119,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5];
-                            let bestDeltaPdf = 230; // [Golden Tuning] Switched to 230 for 2-column gap
+                            let bestDeltaPdf = 320; // [Final Tuning] Based on 431/246 delta
                             if (headerDeltas.length > 0) {
                                 const closestHeader = headerDeltas.reduce((prev, curr) =>
                                     Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
                                 );
-                                bestDeltaPdf = closestHeader.deltaPdf;
+                                bestDeltaPdf = closestHeader.deltaPdf + 180; // Add column width buffer
                             }
                             coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
                         }
@@ -134,7 +134,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 setNameCoordinates(coords);
 
                 setOffsetX(0);
-                setOffsetY(0); // [Golden Tuning] Base formula is now accurate, start at 0
+                setOffsetY(0);
 
             } catch (e) {
                 console.error("Auto-analysis failed", e);
@@ -323,10 +323,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const foundCoord = nameCoordinates[attendee.name];
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale, canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                        // [Golden Tuning] Applied X:431, Y:620 target values
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 230) * scale;
-                        initLeft = canvasX + baseDeltaX - 25 + offsetX;
-                        initTop = canvasY - 35 + offsetY;
+                        // [Final Golden Tuning] 
+                        // Target X: 431 -> canvasX + (320*1.2) - 15 = 431 (if canvasX=60)
+                        // Target Y: 620 -> canvasY + 130 = 620 (if canvasY=490)
+                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 320) * scale;
+                        initLeft = canvasX + baseDeltaX - 15 + offsetX;
+                        initTop = canvasY + 130 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
