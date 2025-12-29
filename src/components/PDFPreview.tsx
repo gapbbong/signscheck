@@ -258,7 +258,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
                         const canvasW = foundCoord.w * scale;
-                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 250) * scale;
 
                         const nameCenter = canvasX + (canvasW / 2);
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
