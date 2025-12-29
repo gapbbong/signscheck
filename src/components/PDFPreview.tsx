@@ -279,12 +279,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const nameCenter = canvasX + (canvasW / 2);
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
-                        const sigBoxWidth = 140;
 
-                        // X: move to sign column center (all in scaled canvas pixels)
+                        const currentSigWidth = 140 * sigGlobalScale;
+                        const canvasSigWidth = currentSigWidth * scale;
+
+                        // X: move to sign column center
                         // Y: +10px to move slightly down from baseline to center in row
                         return {
-                            x: nameCenter + signCenterDelta - (sigBoxWidth * scale / 2) + offsetX,
+                            x: nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX,
                             y: canvasY + 10 + offsetY
                         };
                     }
@@ -299,8 +301,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pdfY = pageHeight - (pos.y / scale);
 
                 // [Fix] Preserve Aspect Ratio (Standard is 3:1 for 600x200)
-                const baseWidth = 140;
-                const targetWidth = baseWidth * sigGlobalScale;
+                const targetWidth = 140 * sigGlobalScale;
                 const aspect = sigImage.height / sigImage.width;
                 const targetHeight = targetWidth * aspect;
 
@@ -348,7 +349,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>↕ Y:</span>
                     <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
                     <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>🔍 Size:</span>
-                    <input type="number" step="0.1" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+                    <input type="number" step="0.05" min="0.1" max="3" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
                 </div>
                 <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↻ Rotate</button>
                 <button onClick={() => setShowDebug(!showDebug)} style={{ backgroundColor: showDebug ? '#ef4444' : 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>🐞 Debug</button>
@@ -410,8 +411,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const nameCenter = canvasX + canvasW / 2;
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
 
+                        const currentSigWidth = 140 * sigGlobalScale;
+                        const canvasSigWidth = currentSigWidth * scale;
+
                         // Apply scale to boxWidth for correct positioning
-                        initLeft = nameCenter + signCenterDelta - (boxWidth * scale / 2) + offsetX;
+                        initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
                         // Center vertically: canvasY is baseline, +10px to sit lower in the row
                         initTop = canvasY + 10 + offsetY;
                     }
