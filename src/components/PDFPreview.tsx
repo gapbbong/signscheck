@@ -256,10 +256,20 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const foundCoord = nameCoordinates[attendee.name];
                 const getInitPos = () => {
                     if (foundCoord && scale) {
-                        const pdfX = foundCoord.x, pdfY = foundCoord.y;
-                        const canvasX = pdfX * scale, canvasY = (foundCoord.pageHeight - pdfY) * scale;
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 150) * scale;
-                        return { x: canvasX + baseDeltaX - 40 + offsetX, y: canvasY - 60 + offsetY };
+                        const canvasX = foundCoord.x * scale;
+                        const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
+                        const canvasW = foundCoord.w * scale;
+                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 250) * scale;
+
+                        // Center of signature box should be at (nameCenter + delta)
+                        const nameCenter = canvasX + (canvasW / 2);
+                        const targetSignCenter = nameCenter + signCenterDelta;
+                        const sigBoxWidth = 140 * scale;
+
+                        return {
+                            x: targetSignCenter - (sigBoxWidth / 2) + offsetX,
+                            y: canvasY + offsetY
+                        };
                     }
                     const index = attendees.findIndex(a => a.name === attendee.name);
                     const cols = 4, col = index % cols, row = Math.floor(index / cols);
@@ -336,18 +346,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     const foundCoord = nameCoordinates[attendee.name];
                     if (foundCoord && scale) {
-                        const canvasX = foundCoord.x * scale, canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
+                        const canvasX = foundCoord.x * scale;
+                        const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
                         const canvasW = foundCoord.w * scale;
 
-                        // [Intelligent Geometry Strike]
-                        // 1. Find the center of the name: canvasX + canvasW/2
-                        // 2. Add the dynamic delta (distance to sign-column center)
-                        // 3. Subtract half of the signature box width (140/2 = 70) to center it.
                         const nameCenter = canvasX + canvasW / 2;
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 250) * scale;
 
                         initLeft = nameCenter + signCenterDelta - (boxWidth / 2) + offsetX;
-                        initTop = canvasY + 168 + offsetY;
+                        initTop = canvasY + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
