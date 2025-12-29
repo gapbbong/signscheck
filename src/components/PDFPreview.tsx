@@ -92,7 +92,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 });
                 if (currentItem) mergedItems.push(currentItem);
 
-                const coords: Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
+                const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
                 const nameHeaders: any[] = [], signHeaders: any[] = [];
 
                 mergedItems.forEach((item: any) => {
