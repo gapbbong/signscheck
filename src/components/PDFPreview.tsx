@@ -327,8 +327,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         // Target X: 431 -> canvasX + (320*1.2) - 15 = 431 (if canvasX=60)
                         // Target Y: 620 -> canvasY + 130 = 620 (if canvasY=490)
                         const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 320) * scale;
-                        initLeft = canvasX + baseDeltaX - 15 + offsetX;
-                        initTop = canvasY + 130 + offsetY;
+                        initLeft = canvasX + baseDeltaX - 56 + offsetX;
+                        initTop = canvasY + 168 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
