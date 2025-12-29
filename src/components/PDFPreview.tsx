@@ -264,12 +264,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const nameCenter = canvasX + (canvasW / 2);
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
-                        const sigBoxWidth = 140 * scale;
+                        const sigBoxWidth = 140;
 
-                        // X: move to sign column center
+                        // X: move to sign column center (all in scaled canvas pixels)
                         // Y: +10px to move slightly down from baseline to center in row
                         return {
-                            x: nameCenter + signCenterDelta - (sigBoxWidth / 2) + offsetX,
+                            x: nameCenter + signCenterDelta - (sigBoxWidth * scale / 2) + offsetX,
                             y: canvasY + 10 + offsetY
                         };
                     }
@@ -355,7 +355,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const nameCenter = canvasX + canvasW / 2;
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
 
-                        initLeft = nameCenter + signCenterDelta - (boxWidth / 2) + offsetX;
+                        // Apply scale to boxWidth for correct positioning
+                        initLeft = nameCenter + signCenterDelta - (boxWidth * scale / 2) + offsetX;
                         // Center vertically: canvasY is baseline, +10px to sit lower in the row
                         initTop = canvasY + 10 + offsetY;
                     }
