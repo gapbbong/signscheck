@@ -15,6 +15,7 @@ export default function SignPage() {
     const [requestData, setRequestData] = useState<any>(null);
     const [submitted, setSubmitted] = useState(false);
     const [isChecked, setIsChecked] = useState(false);
+    const [hasSigned, setHasSigned] = useState(false); // [New] Validation state
     const [txtContent, setTxtContent] = useState<string | null>(null); // [New] For .txt attachments
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -115,6 +116,7 @@ export default function SignPage() {
         if (!ctx) return;
 
         setIsDrawing(true);
+        setHasSigned(true); // [New] Mark as signed
         const { offsetX, offsetY } = getCoordinates(e, canvas);
 
         ctx.lineWidth = 12;
@@ -162,6 +164,7 @@ export default function SignPage() {
         if (canvas) {
             const ctx = canvas.getContext('2d');
             ctx?.clearRect(0, 0, canvas.width, canvas.height);
+            setHasSigned(false); // [New] Reset signature state
         }
     };
 
@@ -298,6 +301,7 @@ export default function SignPage() {
                                         if (ctx) {
                                             ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
                                             ctx.drawImage(img, 0, 0);
+                                            setHasSigned(true); // [New] Mark as signed
                                         }
                                     };
                                     img.src = saved;
@@ -324,8 +328,8 @@ export default function SignPage() {
             <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0' }}>
                 <button
                     onClick={handleSubmit}
-                    disabled={!isChecked}
-                    style={{ width: '100%', padding: '1rem', backgroundColor: isChecked ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: isChecked ? 'pointer' : 'not-allowed' }}
+                    disabled={!isChecked || !hasSigned}
+                    style={{ width: '100%', padding: '1rem', backgroundColor: (isChecked && hasSigned) ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: (isChecked && hasSigned) ? 'pointer' : 'not-allowed' }}
                 >
                     서명 제출하기
                 </button>
