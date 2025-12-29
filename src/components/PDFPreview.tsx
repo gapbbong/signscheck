@@ -81,28 +81,43 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const textContent = await page.getTextContent();
                 const unscaledViewport = page.getViewport({ scale: 1.0 }); // Use base scale for coords
 
-                // 2. Name Mapping & Grid Analysis
-                const coords: Record<string, { x: number, y: number, pageHeight: number }> = {};
+                // 2. Name Mapping & Grid Analysis (Enhanced with Anchors)
+                const coords: Record<string, { x: number, y: number, pageHeight: number, anchorX?: number }> = {};
                 const rows: Record<number, number[]> = {}; // y -> [x, x, x]
 
-                // Naive Match: Look for exact name string in items
+                // Find potential anchor points (boxes, labels)
+                const anchorPoints: { x: number, y: number, text: string }[] = [];
+                textContent.items.forEach((item: any) => {
+                    const str = item.str.trim();
+                    if (str.includes('(인)') || str.includes('서명') || str.includes('□') || str.includes(' (인)')) {
+                        anchorPoints.push({
+                            x: item.transform[4],
+                            y: item.transform[5],
+                            text: str
+                        });
+                    }
+                });
+
                 textContent.items.forEach((item: any) => {
                     const str = item.str.trim();
                     if (str.length >= 2) {
-                        // Check if this string is one of our attendees
-                        const matchedAttendee = attendees.find(a => str.includes(a.name));
+                        const matchedAttendee = attendees.find(a => str === a.name || str.includes(a.name));
                         if (matchedAttendee) {
                             const tx = item.transform[4];
                             const ty = item.transform[5];
 
-                            // Let's use the raw PDF coords for now, we will scale them during render
+                            // Find the nearest anchor point on the SAME line (y tolerance 10)
+                            const nearbyAnchor = anchorPoints.find(ap =>
+                                Math.abs(ap.y - ty) < 10 && ap.x > tx && ap.x < tx + 200
+                            );
+
                             coords[matchedAttendee.name] = {
                                 x: tx,
                                 y: ty,
-                                pageHeight: unscaledViewport.height
+                                pageHeight: unscaledViewport.height,
+                                anchorX: nearbyAnchor?.x
                             };
 
-                            // Group by Row (Tolerance 5px)
                             const rowKey = Object.keys(rows).find(k => Math.abs(Number(k) - ty) < 5);
                             if (rowKey) {
                                 rows[Number(rowKey)].push(tx);
@@ -112,48 +127,48 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         }
                     }
                 });
-                console.log("Auto-Detected Name Positions:", coords);
+                console.log("Auto-Detected Name Positions & Anchors:", coords);
                 setNameCoordinates(coords);
 
-                // 3. Smart Gap Calculation
-                // Find average distance between items in the same row
-                let totalGap = 0;
-                let gapCount = 0;
-
-                Object.values(rows).forEach(rowXs => {
-                    if (rowXs.length > 1) {
-                        rowXs.sort((a, b) => a - b);
-                        for (let i = 0; i < rowXs.length - 1; i++) {
-                            const gap = rowXs[i + 1] - rowXs[i];
-                            // Filter huge gaps (e.g. across separate tables)
-                            if (gap > 50 && gap < 500) {
-                                totalGap += gap;
-                                gapCount++;
-                            }
-                        }
+                // 3. Smart Gap & Anchor Calibration
+                const anchorOffsets: number[] = [];
+                Object.values(coords).forEach(c => {
+                    if (c.anchorX) {
+                        anchorOffsets.push((c.anchorX - c.x) * 1.2); // PDF to Pixel scale approx
                     }
                 });
 
-                if (gapCount > 0) {
-                    const avgGap = totalGap / gapCount;
-                    // Heuristic: Signature box usually starts at ~40-50% of the column width 
-                    // if the structure is [Name][Sign][Name][Sign]
-                    // Previous logic placed Left Edge at center (biased right).
-                    // New logic Centers the box (120px wide) in the gap.
+                if (anchorOffsets.length > 0) {
+                    const avgAnchorOffset = anchorOffsets.reduce((a, b) => a + b, 0) / anchorOffsets.length;
+                    console.log(`Smart Anchor Analysis: Applying average offset ${avgAnchorOffset}px`);
+                    // Offset to center the 140px box on the anchor
+                    setOffsetX(avgAnchorOffset - 60);
+                    setOffsetY(-35); // Default stable Y
+                } else {
+                    // Fallback to gap analysis
+                    let totalGap = 0;
+                    let gapCount = 0;
+                    Object.values(rows).forEach(rowXs => {
+                        if (rowXs.length > 1) {
+                            rowXs.sort((a, b) => a - b);
+                            for (let i = 0; i < rowXs.length - 1; i++) {
+                                const gap = rowXs[i + 1] - rowXs[i];
+                                if (gap > 50 && gap < 500) {
+                                    totalGap += gap;
+                                    gapCount++;
+                                }
+                            }
+                        }
+                    });
 
-                    const boxWidth = 120;
-                    const scaleFactor = 1.2; // Estimated scale
-
-                    // Gap is in PDF units. Convert to Pixels (approx)
-                    const gapPixels = avgGap * scaleFactor;
-
-                    // We want Center of Box to be at Center of Gap
-                    // Offset = (Gap / 2) - (BoxWidth / 2)
-                    const centerOffset = (gapPixels / 2) - (boxWidth / 2);
-
-                    console.log(`Smart Grid Analysis: Avg Gap=${avgGap} (PDF), Gap=${gapPixels}px, CenterOffset=${centerOffset}px`);
-
-                    setOffsetX(centerOffset);
+                    if (gapCount > 0) {
+                        const avgGap = totalGap / gapCount;
+                        const boxWidth = 120;
+                        const scaleFactor = 1.2;
+                        const gapPixels = avgGap * scaleFactor;
+                        const centerOffset = (gapPixels / 2) - (boxWidth / 2);
+                        setOffsetX(centerOffset);
+                    }
                 }
 
             } catch (e) {
