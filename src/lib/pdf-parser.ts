@@ -64,10 +64,16 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
         item.str === "교직원"
     );
 
+    // [New] Sort anchors by page then by X coordinate (Left to Right)
+    anchors.sort((a, b) => {
+        if (a.page !== b.page) return a.page - b.page;
+        return a.x - b.x;
+    });
+
     if (anchors.length > 0) {
         anchors.forEach(anchor => {
             // Find items below this specific anchor (same column)
-            // Look for items with similar X coordinate (+/- 60px) and below it (Y increases downward in some systems, but pdf.js usually has Y increasing UP)
+            // Look for items with similar X coordinate (+/- 60px) and below it (Y increases upward in some systems, but pdf.js usually has Y increasing UP)
             // In extractStructuredTextFromPDF, we use ty as y. Standard PDF coordinate: 0,0 is bottom-left. 
             // So "below" means item.y < anchor.y
             const columnItems = items.filter(item =>
@@ -76,6 +82,9 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
                 (anchor.y - item.y) < 600 && // Within reasonable vertical distance
                 Math.abs(item.x - anchor.x) < 60 // Same column alignment
             );
+
+            // [New] Sort items within the column by Y coordinate descending (Top to Bottom)
+            columnItems.sort((a, b) => b.y - a.y);
 
             columnItems.forEach(item => {
                 // Only extract if the string is short (likely a name, not a sentence)
@@ -89,7 +98,14 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
 
     // 2. Fallback: If still too few, try to look for name-like patterns globally but with stricter filtering
     if (potentialNames.size < 5) {
-        items.forEach(item => {
+        // [New] Sort items globally for fallback (Top-down, then Left-right)
+        const sortedItems = [...items].sort((a, b) => {
+            if (a.page !== b.page) return a.page - b.page;
+            if (Math.abs(a.y - b.y) > 10) return b.y - a.y;
+            return a.x - b.x;
+        });
+
+        sortedItems.forEach(item => {
             if (item.str.length >= 2 && item.str.length <= 4) {
                 const names = extractNamesFromRawString(item.str);
                 names.forEach(n => potentialNames.add(n));
