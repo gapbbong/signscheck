@@ -268,7 +268,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         return {
                             x: targetSignCenter - (sigBoxWidth / 2) + offsetX,
-                            y: canvasY + offsetY
+                            y: canvasY - 15 + offsetY
                         };
                     }
                     const index = attendees.findIndex(a => a.name === attendee.name);
@@ -354,7 +354,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 250) * scale;
 
                         initLeft = nameCenter + signCenterDelta - (boxWidth / 2) + offsetX;
-                        initTop = canvasY + offsetY;
+                        // Center vertically: canvasY is baseline, -15px to center in row
+                        initTop = canvasY - 15 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
