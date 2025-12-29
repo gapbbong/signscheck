@@ -323,9 +323,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const foundCoord = nameCoordinates[attendee.name];
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale, canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 150) * scale;
-                        initLeft = canvasX + baseDeltaX - 40 + offsetX;
-                        initTop = canvasY - 60 + offsetY;
+                        // [Golden Tuning] Applied X:431, Y:620 target values
+                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 230) * scale;
+                        initLeft = canvasX + baseDeltaX - 25 + offsetX;
+                        initTop = canvasY - 35 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
