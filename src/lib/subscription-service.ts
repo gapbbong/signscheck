@@ -185,26 +185,6 @@ export async function incrementMeetingCount(userId: string): Promise<void> {
  * Check if user can create a new meeting
  */
 export async function canCreateMeeting(userId: string): Promise<{ allowed: boolean; reason?: string }> {
-    const subscription = await getUserSubscription(userId);
-
-    if (!subscription) {
-        return { allowed: false, reason: "구독 정보를 찾을 수 없습니다." };
-    }
-
-    // Pro users have unlimited meetings
-    if (subscription.tier === 'pro') {
-        return { allowed: true };
-    }
-
-    // Free users: check monthly limit (5 meetings)
-    const usage = await getMonthlyUsage(userId);
-
-    if (usage.meetingCount >= 5) {
-        return {
-            allowed: false,
-            reason: "무료 플랜은 월 5회까지 회의를 생성할 수 있습니다. Pro로 업그레이드하세요!"
-        };
-    }
-
+    // [Temporary] Unlimited meetings for all users as requested
     return { allowed: true };
 }
