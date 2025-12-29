@@ -243,7 +243,7 @@ export default function Home() {
       // [New] Check usage limits
       const usageCheck = await canCreateMeeting(user.uid);
       if (!usageCheck.allowed) {
-        showToast(usageCheck.reason, "error");
+        showToast(usageCheck.reason || "회의 생성 한도를 초과했습니다.", "error");
         const ok = await uiConfirm("Pro로 업그레이드하시겠습니까?");
         if (ok) {
           window.location.href = "/pricing";
