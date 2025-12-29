@@ -240,7 +240,7 @@ export default function SignPage() {
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>
                         서명할 문서 확인 (Preview) <span style={{ color: '#ef4444', marginLeft: '8px' }}>※ 서명란은 페이지 맨 아래에 있습니다</span>
                     </label>
-                    <div style={{ width: '100%', minHeight: '600px', height: '80vh', maxHeight: '1200px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', aspectRatio: '1 / 1.4' }}>
+                    <div style={{ width: '100%', height: 'auto', minHeight: '600px', aspectRatio: '1 / 1.414', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                         {requestData.mainPdfUrl ? (
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
