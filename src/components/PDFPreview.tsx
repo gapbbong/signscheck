@@ -77,75 +77,83 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 // 2. Pre-process text: Sort and Merge items on the same line to fix split names
                 const sortedItems = [...textContent.items].sort((a: any, b: any) => {
-                    const ay = a.transform[5], by = b.transform[5];
-                    if (Math.abs(ay - by) < 5) return a.transform[4] - b.transform[4];
-                    return by - ay;
-                });
+                    // 2. Pre-process text: Sort and Merge items on the same line to fix split names
+                    const sortedItems = [...textContent.items].sort((a: any, b: any) => {
+                        const ay = a.transform[5], by = b.transform[5];
+                        if (Math.abs(ay - by) < 8) return a.transform[4] - b.transform[4]; // Relaxed Y to 8px
+                        return by - ay;
+                    });
 
-                const mergedItems: any[] = [];
-                let currentItem: any = null;
-                sortedItems.forEach((item: any) => {
-                    if (!currentItem) { currentItem = { ...item }; return; }
-                    const prevY = currentItem.transform[5], currY = item.transform[5];
-                    const prevRight = currentItem.transform[4] + (currentItem.width || 0);
-                    if (Math.abs(prevY - currY) < 5 && (item.transform[4] - prevRight) < 30) {
-                        currentItem.str += item.str;
-                    } else {
-                        mergedItems.push(currentItem);
-                        currentItem = { ...item };
-                    }
-                });
-                if (currentItem) mergedItems.push(currentItem);
-
-                const coords: Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
-                const nameHeaders: any[] = [], signHeaders: any[] = [];
-
-                mergedItems.forEach((item: any) => {
-                    const str = item.str.replace(/\s+/g, '');
-                    if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) nameHeaders.push(item);
-                    if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) signHeaders.push(item);
-                });
-
-                const headerDeltas: { nameX: number, deltaPdf: number }[] = [];
-                nameHeaders.forEach(nh => {
-                    const nx = nh.transform[4], ny = nh.transform[5];
-                    const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 15 && sh.transform[4] > nx);
-                    if (sh) headerDeltas.push({ nameX: nx, deltaPdf: sh.transform[4] - nx });
-                });
-
-                mergedItems.forEach((item: any) => {
-                    const str = item.str.trim();
-                    if (str.length >= 2) {
-                        const matchedAttendee = attendees.find(a => {
-                            const cleanStr = str.replace(/\s/g, ''), cleanName = a.name.replace(/\s/g, '');
-                            return cleanStr === cleanName || cleanStr.includes(cleanName);
-                        });
-                        if (matchedAttendee) {
-                            const tx = item.transform[4], ty = item.transform[5];
-                            let bestDeltaPdf = 80;
-                            if (headerDeltas.length > 0) {
-                                const closestHeader = headerDeltas.reduce((prev, curr) =>
-                                    Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
-                                );
-                                bestDeltaPdf = closestHeader.deltaPdf;
-                            }
-                            coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
+                    const mergedItems: any[] = [];
+                    let currentItem: any = null;
+                    sortedItems.forEach((item: any) => {
+                        if (!currentItem) { currentItem = { ...item }; return; }
+                        const prevY = currentItem.transform[5], currY = item.transform[5];
+                        const prevRight = currentItem.transform[4] + (currentItem.width || 0);
+                        // Merge if close enough on the same visual line
+                        if (Math.abs(prevY - currY) < 8 && (item.transform[4] - prevRight) < 40) {
+                            currentItem.str += (currentItem.str.endsWith(' ') ? '' : ' ') + item.str;
+                        } else {
+                            mergedItems.push(currentItem);
+                            currentItem = { ...item };
                         }
-                    }
-                });
-                console.log("Auto-Detected Name Positions & Header Deltas (Merged):", coords);
-                setNameCoordinates(coords);
+                    });
+                    if (currentItem) mergedItems.push(currentItem);
 
-                // Reset global offsets for a fresh file
-                setOffsetX(0);
-                setOffsetY(-35);
+                    const coords: Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
+                    const nameHeaders: any[] = [], signHeaders: any[] = [];
 
-            } catch (e) {
-                console.error("Auto-analysis failed", e);
-            }
-        };
-        loadPdf();
-    }, [file, attendees]);
+                    mergedItems.forEach((item: any) => {
+                        const str = item.str.replace(/\s+/g, '');
+                        if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) nameHeaders.push(item);
+                        if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) signHeaders.push(item);
+                    });
+
+                    const headerDeltas: { nameX: number, deltaPdf: number }[] = [];
+                    nameHeaders.forEach(nh => {
+                        const nx = nh.transform[4], ny = nh.transform[5];
+                        // Search for signature header strictly on the right side on the same line
+                        const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 20 && sh.transform[4] > nx);
+                        if (sh) headerDeltas.push({ nameX: nx, deltaPdf: sh.transform[4] - nx });
+                    });
+
+                    mergedItems.forEach((item: any) => {
+                        const str = item.str.trim();
+                        if (str.length >= 2) {
+                            const matchedAttendee = attendees.find(a => {
+                                // Strip numbers and spaces for robust name matching (e.g. "7 이갑종" -> "이갑종")
+                                const cleanStr = str.replace(/[0-9\s\(\)\[\]\.]/g, '');
+                                const cleanName = a.name.replace(/\s/g, '');
+                                return cleanStr === cleanName || cleanStr.includes(cleanName);
+                            });
+
+                            if (matchedAttendee) {
+                                const tx = item.transform[4], ty = item.transform[5];
+                                let bestDeltaPdf = 150; // Standard gap in pts for 2-column if detection fails
+                                if (headerDeltas.length > 0) {
+                                    // Find delta from the closest name header column
+                                    const closestHeader = headerDeltas.reduce((prev, curr) =>
+                                        Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
+                                    );
+                                    bestDeltaPdf = closestHeader.deltaPdf;
+                                }
+                                coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
+                            }
+                        }
+                    });
+                    console.log("Auto-Detected Name Positions & Header Deltas (Refined):", coords);
+                    setNameCoordinates(coords);
+
+                    // Reset global offsets for a fresh file
+                    setOffsetX(0);
+                    setOffsetY(-35);
+
+                } catch (e) {
+                    console.error("Auto-analysis failed", e);
+                }
+            };
+            loadPdf();
+        }, [file, attendees]);
 
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current) return;
@@ -327,9 +335,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const foundCoord = nameCoordinates[attendee.name];
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale, canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 80) * scale;
-                        initLeft = canvasX + baseDeltaX - 60 + offsetX;
-                        initTop = canvasY + offsetY;
+                        // [Fine-tuned] Combine Auto-Delta + Manual Offset. 
+                        // Using -40 to align the 140px box better over the signature field start.
+                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 150) * scale;
+                        initLeft = canvasX + baseDeltaX - 40 + offsetX;
+                        initTop = canvasY - 60 + offsetY; // Elevated by 60 to enter the cell box correctly
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
