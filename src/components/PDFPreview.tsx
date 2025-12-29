@@ -350,9 +350,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
                                 <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))', pointerEvents: 'none' }} />
                             </div>
-                            <div style={{ position: 'absolute', top: -18, left: 0, fontSize: '11px', color: '#64748b', fontWeight: 'bold', backgroundColor: 'rgba(255,255,255,0.9)', padding: '1px 4px', borderRadius: '2px', border: '1px solid #cbd5e1', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-                                {attendee.name} (서명본)
-                                <span style={{ color: '#ef4444', marginLeft: '6px' }}>X:{Math.round(pos.x)} Y:{Math.round(pos.y)}</span>
+                            <div style={{ position: 'absolute', top: -20, left: 0, fontSize: '12px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
+                                {attendee.name}
+                                <span style={{ color: '#ef4444', marginLeft: '8px', fontSize: '13px' }}>[X:{Math.round(pos.x)} Y:{Math.round(pos.y)}]</span>
                             </div>
                         </div>
                     );
