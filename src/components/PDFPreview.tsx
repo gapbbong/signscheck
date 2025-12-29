@@ -66,6 +66,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
     const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number }[]>([]);
     const [debugHeaderDeltas, setDebugHeaderDeltas] = useState<any[]>([]);
+    const [displayScale, setDisplayScale] = useState(1);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const loadPdf = async () => {
@@ -197,6 +199,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current) return;
 
+        const canvas = canvasRef.current;
+        const observer = new ResizeObserver(() => {
+            if (canvas.width > 0) {
+                setDisplayScale(canvas.clientWidth / canvas.width);
+            }
+        });
+        observer.observe(canvas);
+
         const renderPage = async () => {
             if (renderTaskRef.current) {
                 renderTaskRef.current.cancel();
@@ -212,7 +222,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 // Update page size state
                 setPageSize({ width: scaledViewport.width, height: scaledViewport.height });
 
-                const canvas = canvasRef.current!;
                 const context = canvas.getContext('2d');
                 if (!context) return;
 
@@ -227,6 +236,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const task = page.render(renderContext);
                 renderTaskRef.current = task;
                 await task.promise;
+
+                // Initial scale check
+                setDisplayScale(canvas.clientWidth / canvas.width);
             } catch (error: any) {
                 if (error.name !== 'RenderingCancelledException') {
                     console.error("Render error:", error);
@@ -236,6 +248,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
         renderPage();
         return () => {
+            observer.disconnect();
             if (renderTaskRef.current) {
                 renderTaskRef.current.cancel();
             }
@@ -383,120 +396,134 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 <button onClick={handleDownload} disabled={isDownloading} style={{ backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.4rem 1rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}>{isDownloading ? 'Processing...' : '💾 Save PDF'}</button>
             </div>
 
-            <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto', margin: '0 auto' }} />
+            <div style={{ position: 'relative', margin: '0 auto', width: 'fit-content' }}>
+                <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
 
-            {/* Header Labels (Blue) - Persistent as requested */}
-            {headerCoords.map((hc, i) => {
-                const x = hc.x * scale;
-                const y = (hc.pageHeight - hc.y) * scale;
-                return (
-                    <div key={`header-${i}`} style={{ position: 'absolute', top: y, left: x, pointerEvents: 'none', zIndex: 40 }}>
-                        <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(59,130,246,0.9)', color: 'white', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                            {hc.str} [X:{Math.round(hc.x)} Y:{Math.round(hc.y)}]
-                        </div>
-                        <div style={{ width: hc.w * scale, height: 15 * scale, border: '1px dashed rgba(59,130,246,0.5)' }} />
+                {/* Scaling Overlay Layer: All coordinate-based absolute items go here */}
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    pointerEvents: 'none',
+                    transform: `scale(${displayScale})`,
+                    transformOrigin: 'top left'
+                }}>
+                    {/* Header Labels (Blue) - Persistent as requested */}
+                    {headerCoords.map((hc, i) => {
+                        const x = hc.x * scale;
+                        const y = (hc.pageHeight - hc.y) * scale;
+                        return (
+                            <div key={`header-${i}`} style={{ position: 'absolute', top: y, left: x, pointerEvents: 'none', zIndex: 40 }}>
+                                <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(59,130,246,0.9)', color: 'white', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                                    {hc.str} [X:{Math.round(hc.x)} Y:{Math.round(hc.y)}]
+                                </div>
+                                <div style={{ width: hc.w * scale, height: 15 * scale, border: '1px dashed rgba(59,130,246,0.5)' }} />
+                            </div>
+                        );
+                    })}
+
+                    {/* Attendee Name & Target Labels */}
+                    {Object.entries(nameCoordinates).map(([name, coord]) => {
+                        const x = coord.x * scale;
+                        const y = (coord.pageHeight - coord.y) * scale;
+                        const w = coord.w * scale;
+                        const h = 20 * scale;
+
+                        const BASE_W = 110;
+                        const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 280) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
+                        const signY = y + 10 + offsetY;
+
+                        return (
+                            <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
+                                {/* Name Box (Red) */}
+                                <div style={{
+                                    position: 'absolute', top: y, left: x, width: w, height: h,
+                                    border: '1px solid rgba(255, 0, 0, 0.4)', backgroundColor: 'rgba(255, 0, 0, 0.05)'
+                                }}>
+                                    <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(239,68,68,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                                        {name} [X:{Math.round(coord.x)} Y:{Math.round(coord.y)}]
+                                    </div>
+                                </div>
+                                {/* Sign Target (Green) */}
+                                <div style={{
+                                    position: 'absolute', top: signY, left: signX, width: 110 * sigGlobalScale * scale, height: (110 / 3) * sigGlobalScale * scale,
+                                    border: '1px solid rgba(34, 197, 94, 0.4)', backgroundColor: 'rgba(34, 197, 94, 0.05)'
+                                }}>
+                                    <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                                        Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)}]
+                                    </div>
+                                </div>
+                                {/* Connecting Line (Only in Debug) */}
+                                {showDebug && (
+                                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
+                                        <line x1={x + w / 2} y1={y + h / 2} x2={signX + (55 * sigGlobalScale * scale)} y2={signY + (18 * sigGlobalScale * scale)} stroke="rgba(0,0,255,0.4)" strokeWidth="1" strokeDasharray="4" />
+                                    </svg>
+                                )}
+                            </div>
+                        );
+                    })}
+
+                    {/* Signed Attendees overlay layer */}
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}>
+                        {signedAttendees.map((attendee, index) => {
+                            const uniqueId = attendee.id || index.toString();
+                            const boxWidth = 110, gap = 10;
+                            const cols = 4, col = index % cols, row = Math.floor(index / cols);
+                            let initLeft = 50 + col * (boxWidth + gap) + offsetX;
+                            let initTop = 100 + row * (50 + gap) + offsetY;
+
+                            const foundCoord = nameCoordinates[attendee.name];
+
+                            if (foundCoord && scale) {
+                                const canvasX = foundCoord.x * scale;
+                                const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
+                                const canvasW = foundCoord.w * scale;
+
+                                const nameCenter = canvasX + canvasW / 2;
+                                const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
+
+                                const currentSigWidth = 110 * sigGlobalScale;
+                                const canvasSigWidth = currentSigWidth * scale;
+
+                                initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
+                                initTop = canvasY + 10 + offsetY;
+                            }
+
+                            const pos = positions[uniqueId] || { x: initLeft, y: initTop };
+
+                            return (
+                                <div
+                                    key={uniqueId}
+                                    onMouseDown={(e) => handleMouseDown(e, uniqueId, initLeft, initTop)}
+                                    style={{
+                                        position: 'absolute',
+                                        top: `${pos.y}px`,
+                                        left: `${pos.x}px`,
+                                        width: `${110 * sigGlobalScale * scale}px`,
+                                        height: `${(110 / 3) * sigGlobalScale * scale}px`,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        cursor: 'move',
+                                        userSelect: 'none',
+                                        zIndex: 50,
+                                        pointerEvents: 'auto'
+                                    }}
+                                >
+                                    <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'transparent'}>
+                                        <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
+                                    </div>
+                                    <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
+                                        {attendee.name}
+                                        <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>[X:{Math.round(pos.x)} Y:{Math.round(pos.y)}]</span>
+                                    </div>
+                                </div>
+                            );
+                        })}
                     </div>
-                );
-            })}
-
-            {/* Attendee Name & Target Labels */}
-            {Object.entries(nameCoordinates).map(([name, coord]) => {
-                const x = coord.x * scale;
-                const y = (coord.pageHeight - coord.y) * scale;
-                const w = coord.w * scale;
-                const h = 20 * scale;
-
-                const BASE_W = 110;
-                const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 280) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                const signY = y + 10 + offsetY;
-
-                return (
-                    <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
-                        {/* Name Box (Red) */}
-                        <div style={{
-                            position: 'absolute', top: y, left: x, width: w, height: h,
-                            border: '1px solid rgba(255, 0, 0, 0.4)', backgroundColor: 'rgba(255, 0, 0, 0.05)'
-                        }}>
-                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(239,68,68,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                {name} [X:{Math.round(coord.x)} Y:{Math.round(coord.y)}]
-                            </div>
-                        </div>
-                        {/* Sign Target (Green) */}
-                        <div style={{
-                            position: 'absolute', top: signY, left: signX, width: 110 * sigGlobalScale * scale, height: (110 / 3) * sigGlobalScale * scale,
-                            border: '1px solid rgba(34, 197, 94, 0.4)', backgroundColor: 'rgba(34, 197, 94, 0.05)'
-                        }}>
-                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)}]
-                            </div>
-                        </div>
-                        {/* Connecting Line (Only in Debug) */}
-                        {showDebug && (
-                            <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
-                                <line x1={x + w / 2} y1={y + h / 2} x2={signX + (55 * sigGlobalScale * scale)} y2={signY + (18 * sigGlobalScale * scale)} stroke="rgba(0,0,255,0.4)" strokeWidth="1" strokeDasharray="4" />
-                            </svg>
-                        )}
-                    </div>
-                );
-            })}
-
-            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
-                {signedAttendees.map((attendee, index) => {
-                    const uniqueId = attendee.id || index.toString();
-                    const boxWidth = 110, gap = 10;
-                    const cols = 4, col = index % cols, row = Math.floor(index / cols);
-                    let initLeft = 50 + col * (boxWidth + gap) + offsetX;
-                    let initTop = 100 + row * (50 + gap) + offsetY;
-
-                    const foundCoord = nameCoordinates[attendee.name];
-
-                    if (foundCoord && scale) {
-                        const canvasX = foundCoord.x * scale;
-                        const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                        const canvasW = foundCoord.w * scale;
-
-                        const nameCenter = canvasX + canvasW / 2;
-                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
-
-                        const currentSigWidth = 110 * sigGlobalScale;
-                        const canvasSigWidth = currentSigWidth * scale;
-
-                        // Apply scale to boxWidth for correct positioning
-                        initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                        // Center vertically: canvasY is baseline, +10px to sit lower in the row
-                        initTop = canvasY + 10 + offsetY;
-                    }
-
-                    const pos = positions[uniqueId] || { x: initLeft, y: initTop };
-
-                    return (
-                        <div
-                            key={uniqueId}
-                            onMouseDown={(e) => handleMouseDown(e, uniqueId, initLeft, initTop)}
-                            style={{
-                                position: 'absolute',
-                                top: `${pos.y}px`,
-                                left: `${pos.x}px`,
-                                width: `${110 * sigGlobalScale * scale}px`,
-                                height: `${(110 / 3) * sigGlobalScale * scale}px`,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                cursor: 'move',
-                                userSelect: 'none',
-                                zIndex: 50
-                            }}
-                        >
-                            <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
-                                <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
-                            </div>
-                            <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
-                                {attendee.name}
-                                <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>[X:{Math.round(pos.x)} Y:{Math.round(pos.y)}]</span>
-                            </div>
-                        </div>
-                    );
-                })}
+                </div>
             </div>
 
             <style jsx>{`
