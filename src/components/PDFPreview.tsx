@@ -64,7 +64,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     }, [onConfirm]);
 
     const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
-    const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number }[]>([]);
+    const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number }[]>([]);
     const [debugHeaderDeltas, setDebugHeaderDeltas] = useState<any[]>([]);
 
     useEffect(() => {
@@ -106,17 +106,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
                 const nameHeaders: any[] = [], signHeaders: any[] = [];
-                const detectedHeaders: { str: string, x: number, y: number, w: number, h: number }[] = [];
+                const detectedHeaders: { str: string, x: number, y: number, w: number, h: number, pageHeight: number }[] = [];
 
                 mergedItems.forEach((item: any) => {
                     const str = item.str.replace(/\s+/g, '');
                     if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) {
                         nameHeaders.push(item);
-                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20 });
+                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20, pageHeight: unscaledViewport.height });
                     }
                     if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) {
                         signHeaders.push(item);
-                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20 });
+                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20, pageHeight: unscaledViewport.height });
                     }
                 });
                 setHeaderCoords(detectedHeaders);
@@ -388,7 +388,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             {/* Header Labels (Blue) - Persistent as requested */}
             {headerCoords.map((hc, i) => {
                 const x = hc.x * scale;
-                const y = ((pageSize?.height || 842) - hc.y) * scale;
+                const y = (hc.pageHeight - hc.y) * scale;
                 return (
                     <div key={`header-${i}`} style={{ position: 'absolute', top: y, left: x, pointerEvents: 'none', zIndex: 40 }}>
                         <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(59,130,246,0.9)', color: 'white', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
