@@ -167,6 +167,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
         loadPdf();
     }, [file, attendees]);
 
+    const [pageSize, setPageSize] = useState<{ width: number, height: number } | null>(null);
+
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current) return;
 
@@ -181,6 +183,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const desiredScale = 1.2;
                 const scaledViewport = page.getViewport({ scale: desiredScale, rotation: (page.rotate + rotation) % 360 });
                 setScale(desiredScale);
+
+                // Update page size state
+                setPageSize({ width: scaledViewport.width, height: scaledViewport.height });
 
                 const canvas = canvasRef.current!;
                 const context = canvas.getContext('2d');
@@ -390,10 +395,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     const foundCoord = nameCoordinates[attendee.name];
 
-                    // [Restore] Force '이갑종' to bottom right as requested
-                    if (attendee.name === '이갑종') {
-                        initLeft = 550;  // Right edge minus signature width
-                        initTop = 950;   // Bottom edge minus signature height
+                    // [Restore] Force '이갑종' to bottom right as requested (Dynamic Calculation)
+                    if (attendee.name === '이갑종' && pageSize) {
+                        // Place at bottom-right with some padding (e.g., 20px from edge)
+                        // Box size is roughly 140*scale x 50*scale. 140*1.2=168, 50*1.2=60.
+                        initLeft = pageSize.width - (140 * scale) - 50;
+                        initTop = pageSize.height - (50 * scale) - 50;
                     } else if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
