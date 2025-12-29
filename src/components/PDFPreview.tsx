@@ -280,7 +280,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const nameCenter = canvasX + (canvasW / 2);
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
 
-                        const currentSigWidth = 140 * sigGlobalScale;
+                        const currentSigWidth = 110 * sigGlobalScale;
                         const canvasSigWidth = currentSigWidth * scale;
 
                         // X: move to sign column center
@@ -301,7 +301,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pdfY = pageHeight - (pos.y / scale);
 
                 // [Fix] Preserve Aspect Ratio (Standard is 3:1 for 600x200)
-                const targetWidth = 140 * sigGlobalScale;
+                const targetWidth = 110 * sigGlobalScale;
                 const aspect = sigImage.height / sigImage.width;
                 const targetHeight = targetWidth * aspect;
 
@@ -370,7 +370,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const h = 20 * scale;
 
                 // Predicted Sign Box
-                const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 280) * scale) - (140 * scale / 2) + offsetX;
+                const BASE_W = 110;
+                const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 280) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
                 const signY = y + 10 + offsetY;
 
                 return (
@@ -382,7 +383,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         }} title={`Name: ${name}`} />
                         {/* Sign Target (Green) */}
                         <div style={{
-                            position: 'absolute', top: signY, left: signX, width: 140 * sigGlobalScale * scale, height: (140 / 3) * sigGlobalScale * scale,
+                            position: 'absolute', top: signY, left: signX, width: 110 * sigGlobalScale * scale, height: (110 / 3) * sigGlobalScale * scale,
                             border: '1px solid rgba(0, 255, 0, 0.5)', backgroundColor: 'rgba(0, 255, 0, 0.1)'
                         }} title={`Target for ${name}`} />
                         {/* Connecting Line */}
@@ -396,10 +397,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
                 {signedAttendees.map((attendee, index) => {
                     const uniqueId = attendee.id || index.toString();
-                    const boxWidth = 140, boxHeight = 50, gap = 10;
+                    const boxWidth = 110, gap = 10;
                     const cols = 4, col = index % cols, row = Math.floor(index / cols);
                     let initLeft = 50 + col * (boxWidth + gap) + offsetX;
-                    let initTop = 100 + row * (boxHeight + gap) + offsetY;
+                    let initTop = 100 + row * (50 + gap) + offsetY;
 
                     const foundCoord = nameCoordinates[attendee.name];
 
@@ -411,7 +412,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const nameCenter = canvasX + canvasW / 2;
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
 
-                        const currentSigWidth = 140 * sigGlobalScale;
+                        const currentSigWidth = 110 * sigGlobalScale;
                         const canvasSigWidth = currentSigWidth * scale;
 
                         // Apply scale to boxWidth for correct positioning
@@ -430,8 +431,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 position: 'absolute',
                                 top: `${pos.y}px`,
                                 left: `${pos.x}px`,
-                                width: `${140 * sigGlobalScale * scale}px`,
-                                height: `${(140 / 3) * sigGlobalScale * scale}px`,
+                                width: `${110 * sigGlobalScale * scale}px`,
+                                height: `${(110 / 3) * sigGlobalScale * scale}px`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
