@@ -505,7 +505,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     style={{
                                         maxWidth: '100%',
                                         maxHeight: '100%',
-                                        mixBlendMode: 'multiply', // [Fix] Makes white background transparent
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))', // Add a subtle shadow instead of multiply
                                         pointerEvents: 'none'
                                     }}
                                 />

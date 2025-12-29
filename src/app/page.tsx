@@ -77,8 +77,13 @@ export default function Home() {
 
       snapshot.forEach(doc => {
         const data = doc.data();
-        if (data.phone && !map[data.phone]) {
-          map[data.phone] = {
+
+        // Use normalized phone as primary key, fallback to name if phone is missing
+        const normPhone = data.phone ? normalizePhone(data.phone) : null;
+        const key = normPhone || data.name;
+
+        if (key && !map[key]) {
+          map[key] = {
             status: data.status,
             signatureUrl: data.signatureUrl
           };
@@ -93,7 +98,10 @@ export default function Home() {
   }, [meetingId]);
 
   const visibleAttendees = attendees.map(a => {
-    const liveData = a.phone ? statusMap[a.phone] : null;
+    // Try to match by normalized phone first, then by exact name
+    const normPhone = a.phone ? normalizePhone(a.phone) : null;
+    const liveData = (normPhone && statusMap[normPhone]) || statusMap[a.name];
+
     return {
       ...a,
       status: liveData?.status || a.status,
