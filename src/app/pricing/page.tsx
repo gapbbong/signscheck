@@ -31,15 +31,17 @@ export default function PricingPage() {
 import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
+import { useNotification } from "@/lib/NotificationContext";
 
 export default function PricingPage() {
     const { user } = useAuth();
     const router = useRouter();
+    const { showToast } = useNotification();
     const [isLoading, setIsLoading] = useState(false);
 
     const handleUpgrade = async () => {
         if (!user) {
-            alert("로그인이 필요합니다.");
+            showToast("로그인이 필요합니다.", "error");
             return;
         }
 
@@ -67,7 +69,7 @@ export default function PricingPage() {
 
             if (paymentResponse.code != null) {
                 // Payment failed
-                alert(`결제 실패: ${paymentResponse.message}`);
+                showToast(`결제 실패: ${paymentResponse.message}`, "error");
                 return;
             }
 
@@ -84,15 +86,15 @@ export default function PricingPage() {
             const verifyResult = await verifyResponse.json();
 
             if (verifyResult.success) {
-                alert("Pro 구독이 활성화되었습니다! 🎉");
+                showToast("Pro 구독이 활성화되었습니다! 🎉", "success");
                 router.push("/");
             } else {
-                alert("결제 검증 실패. 고객센터에 문의해주세요.");
+                showToast("결제 검증 실패. 고객센터에 문의해주세요.", "error");
             }
 
         } catch (error) {
             console.error("Payment error:", error);
-            alert("결제 중 오류가 발생했습니다.");
+            showToast("결제 중 오류가 발생했습니다.", "error");
         } finally {
             setIsLoading(false);
         }

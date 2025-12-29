@@ -5,10 +5,12 @@ import { db } from '@/lib/firebase';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
+import { useNotification } from '@/lib/NotificationContext';
 
 export default function SignPage() {
     const params = useParams();
     const id = params?.id as string;
+    const { showToast } = useNotification();
 
     const [loading, setLoading] = useState(true);
     const [config, setConfig] = useState<AppConfig | null>(null);
@@ -175,7 +177,7 @@ export default function SignPage() {
     const handleSubmit = async () => {
         if (!canvasRef.current) return;
         if (!isChecked) {
-            alert("안내사항을 확인하고 체크해주세요.");
+            showToast("안내사항을 확인하고 체크해주세요.", "error");
             return;
         }
 
@@ -192,7 +194,7 @@ export default function SignPage() {
             setSubmitted(true);
         } catch (error) {
             console.error(error);
-            alert("서명 제출 실패");
+            showToast("서명 제출 실패", "error");
         }
     };
 
@@ -311,7 +313,7 @@ export default function SignPage() {
                                         }
                                     };
                                     img.src = saved;
-                                } else { alert("저장된 서명이 없습니다."); }
+                                } else { showToast("저장된 서명이 없습니다.", "error"); }
                             }}
                             style={{ fontSize: '0.8rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
                         >

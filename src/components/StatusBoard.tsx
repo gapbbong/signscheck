@@ -5,6 +5,7 @@ import { Attendee } from "@/lib/gas-service";
 import { AppConfig } from "@/lib/config-service";
 import { AttendeeTemplate, saveTemplate, getTemplates, deleteTemplate } from "@/lib/template-service";
 import { useEffect } from "react";
+import { useNotification } from "@/lib/NotificationContext";
 
 interface ExtendedAttendee extends Attendee {
     id: string;
@@ -34,6 +35,7 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
     const [templates, setTemplates] = useState<AttendeeTemplate[]>([]);
     const [templateName, setTemplateName] = useState("");
     const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+    const { showToast, confirm: uiConfirm, prompt: uiPrompt } = useNotification();
 
     useEffect(() => {
         if (showTemplateModal && hostUid) {
@@ -48,32 +50,32 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
             setTemplates(data);
         } catch (error: any) {
             console.error("Fetch templates failed:", error);
-            alert(`템플릿을 불러오지 못했습니다: ${error.message}`);
+            showToast(`템플릿을 불러오지 못했습니다: ${error.message}`, "error");
         }
     };
 
     const handleSaveCurrentAsTemplate = async () => {
         if (!hostUid) {
-            alert("로그인이 필요합니다.");
+            showToast("로그인이 필요합니다.", "error");
             return;
         }
         if (attendees.length === 0) {
-            alert("저장할 인원이 없습니다.");
+            showToast("저장할 인원이 없습니다.", "error");
             return;
         }
 
-        const name = prompt("템플릿 이름을 입력하세요 (예: 1학년 교직원):");
+        const name = await uiPrompt("템플릿 이름을 입력하세요 (예: 1학년 교직원):");
         if (!name || !name.trim()) return;
 
         setIsSavingTemplate(true);
         try {
             const list = attendees.map(a => ({ name: a.name, phone: a.phone }));
             await saveTemplate(hostUid, name.trim(), list);
-            alert("템플릿이 저장되었습니다.");
+            showToast("템플릿이 저장되었습니다.", "success");
             if (showTemplateModal) fetchTemplates();
         } catch (error: any) {
             console.error(error);
-            alert(`저장 실패: ${error.message || "알 수 없는 오류"}`);
+            showToast(`저장 실패: ${error.message || "알 수 없는 오류"}`, "error");
         } finally {
             setIsSavingTemplate(false);
         }
@@ -87,7 +89,8 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
     };
 
     const handleDeleteTemplate = async (id: string) => {
-        if (confirm("이 템플릿을 삭제하시겠습니까?")) {
+        const ok = await uiConfirm("이 템플릿을 삭제하시겠습니까?");
+        if (ok) {
             await deleteTemplate(id);
             fetchTemplates();
         }

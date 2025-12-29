@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { Attendee } from '@/lib/gas-service';
 import { updateMeetingHash } from '@/lib/meeting-service';
+import { useNotification } from '@/lib/NotificationContext';
 
 interface Props {
     file: File;
@@ -18,6 +19,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const [scale, setScale] = useState(1.0);
     const [rotation, setRotation] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
+    const { showToast } = useNotification();
 
     const [offsetX, setOffsetX] = useState(0);
     const [offsetY, setOffsetY] = useState(-35);
@@ -110,16 +112,19 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) signHeaders.push(item);
                 });
 
-                const headerDeltas: { nameX: number, deltaPdf: number }[] = [];
+                const headerDeltas: { nameX: number, deltaPdf: number, band: { yMin: number, yMax: number } }[] = [];
                 nameHeaders.forEach(nh => {
-                    const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3; // Estimated width if missing
-                    // Find sign header on same line
-                    const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 20 && sh.transform[4] > nx);
+                    const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3;
+                    // Find sign header on same line (allow +/- 15px vertical variance)
+                    const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 15 && sh.transform[4] > nx);
                     if (sh) {
                         const sx = sh.transform[4], sw = sh.width || sh.transform[0] * 2;
-                        // Distance from name-start to sign-center
                         const centerDelta = (sx + sw / 2) - (nx + nw / 2);
-                        headerDeltas.push({ nameX: nx, deltaPdf: centerDelta });
+                        headerDeltas.push({
+                            nameX: nx,
+                            deltaPdf: centerDelta,
+                            band: { yMin: ny - 400, yMax: ny + 50 } // Vertical context for this column
+                        });
                     }
                 });
                 setDebugHeaderDeltas(headerDeltas);
@@ -127,21 +132,31 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 mergedItems.forEach((item: any) => {
                     const str = item.str.trim();
                     if (str.length >= 2) {
+                        const cleanStr = str.replace(/[0-9\s\(\)\[\]\.\*\-]/g, '');
                         const matchedAttendee = attendees.find(a => {
-                            const cleanStr = str.replace(/[0-9\s\(\)\[\]\.]/g, '');
                             const cleanName = a.name.replace(/\s/g, '');
                             return cleanStr === cleanName || cleanStr.includes(cleanName);
                         });
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5], tw = item.width || item.transform[0] * 2;
-                            let bestDeltaPdf = 280; // Default delta if auto-analysis fails
+                            let bestDeltaPdf = 280;
+
                             if (headerDeltas.length > 0) {
-                                const closestHeader = headerDeltas.reduce((prev, curr) =>
-                                    Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
+                                // Find delta from the header in the same "band" (column)
+                                const sameBandHeader = headerDeltas.find(h =>
+                                    Math.abs(h.nameX - tx) < 100 && ty > h.band.yMin && ty < h.band.yMax
                                 );
-                                // Use detected delta, but enforce minimum of 200 to ensure separation
-                                bestDeltaPdf = Math.max(closestHeader.deltaPdf, 200);
+
+                                if (sameBandHeader) {
+                                    bestDeltaPdf = sameBandHeader.deltaPdf;
+                                } else {
+                                    // Fallback to closest header by X only
+                                    const closestHeader = headerDeltas.reduce((prev, curr) =>
+                                        Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
+                                    );
+                                    bestDeltaPdf = Math.max(closestHeader.deltaPdf, 200);
+                                }
                             }
                             coords[matchedAttendee.name] = {
                                 x: tx,
@@ -251,7 +266,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
     const handleDownload = async () => {
         if (!file || signedAttendees.length === 0) {
-            alert("서명이 완료된 참가자가 없습니다.");
+            showToast("서명이 완료된 참가자가 없습니다.", "error");
             return;
         }
 
@@ -329,7 +344,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
         } catch (error) {
             console.error("Clean Save Failed:", error);
-            alert("PDF 생성에 실패했습니다.");
+            showToast("PDF 생성에 실패했습니다.", "error");
         } finally {
             setIsDownloading(false);
         }
@@ -379,16 +394,24 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         {/* Name Box (Red) */}
                         <div style={{
                             position: 'absolute', top: y, left: x, width: w, height: h,
-                            border: '1px solid rgba(255, 0, 0, 0.5)', backgroundColor: 'rgba(255, 0, 0, 0.1)'
-                        }} title={`Name: ${name}`} />
+                            border: '1px solid rgba(255, 0, 0, 0.7)', backgroundColor: 'rgba(255, 0, 0, 0.1)'
+                        }}>
+                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(255,0,0,0.8)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
+                                {name} [X:{Math.round(x)} Y:{Math.round(y)}]
+                            </div>
+                        </div>
                         {/* Sign Target (Green) */}
                         <div style={{
                             position: 'absolute', top: signY, left: signX, width: 110 * sigGlobalScale * scale, height: (110 / 3) * sigGlobalScale * scale,
-                            border: '1px solid rgba(0, 255, 0, 0.5)', backgroundColor: 'rgba(0, 255, 0, 0.1)'
-                        }} title={`Target for ${name}`} />
+                            border: '1px solid rgba(0, 255, 0, 0.7)', backgroundColor: 'rgba(0, 255, 0, 0.1)'
+                        }}>
+                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.8)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
+                                Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)}]
+                            </div>
+                        </div>
                         {/* Connecting Line */}
                         <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
-                            <line x1={x + w / 2} y1={y + h / 2} x2={signX + (70 * scale)} y2={signY + (25 * scale)} stroke="rgba(0,0,255,0.3)" strokeWidth="1" />
+                            <line x1={x + w / 2} y1={y + h / 2} x2={signX + (55 * sigGlobalScale * scale)} y2={signY + (18 * sigGlobalScale * scale)} stroke="rgba(0,0,255,0.4)" strokeWidth="1" strokeDasharray="4" />
                         </svg>
                     </div>
                 );

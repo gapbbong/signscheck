@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect } from 'react';
+import { useNotification } from '@/lib/NotificationContext';
 
 interface SimulationModalProps {
     isOpen: boolean;
@@ -9,6 +10,7 @@ interface SimulationModalProps {
 }
 
 export default function SimulationModal({ isOpen, onClose, links }: SimulationModalProps) {
+    const { showToast } = useNotification();
     // Add effect to handle ESC key
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -98,7 +100,7 @@ export default function SimulationModal({ isOpen, onClose, links }: SimulationMo
                                     onClick={() => {
                                         const url = link.split(': ')[1] || link.split(':')[1];
                                         navigator.clipboard.writeText(url);
-                                        alert("복사되었습니다!");
+                                        showToast("복사되었습니다!", "success");
                                     }}
                                     style={{
                                         backgroundColor: '#3b82f6',
@@ -143,7 +145,7 @@ export default function SimulationModal({ isOpen, onClose, links }: SimulationMo
                             }).join('\n\n') + '\n';
 
                             navigator.clipboard.writeText(allText);
-                            alert("메신저 전송 최적화 복사가 완료되었습니다! 📋");
+                            showToast("메신저 전송 최적화 복사가 완료되었습니다! 📋", "success");
                         }}
                         style={{
                             backgroundColor: '#0f172a',

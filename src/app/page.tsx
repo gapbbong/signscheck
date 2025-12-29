@@ -10,7 +10,8 @@ import StatusBoard from "@/components/StatusBoard";
 import { extractStructuredTextFromPDF, extractNamesFromStructuredData } from '@/lib/pdf-parser';
 import { fetchAttendeesFromSheet, Attendee } from '@/lib/gas-service';
 import { createSignatureRequest } from '@/lib/signature-service';
-import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment } from "@/lib/meeting-service";
+import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment, updateMeetingHash } from "@/lib/meeting-service";
+import { useNotification } from '@/lib/NotificationContext';
 import { collection, query, onSnapshot, orderBy, getDocs, where } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
@@ -30,7 +31,8 @@ const normalizePhone = (phone: string | null) => {
 };
 
 export default function Home() {
-  const { user, signOut } = useAuth();
+  const { user, loading: authLoading, signOut } = useAuth();
+  const { showToast, confirm: uiConfirm } = useNotification();
 
   // State
   const [attendees, setAttendees] = useState<(Attendee & { id: string; selected: boolean; status: string })[]>([]);
@@ -111,7 +113,8 @@ export default function Home() {
 
   // Handle Meeting Selection from History
   const handleSelectMeeting = async (selectedMeetingId: string, fileName: string) => {
-    if (confirm(`'${fileName}' 회의 기록을 불러오시겠습니까? (현재 작업 중인 내용은 닫힙니다)`)) {
+    const ok = await uiConfirm(`'${fileName}' 회의 기록을 불러오시겠습니까? (현재 작업 중인 내용은 닫힙니다)`);
+    if (ok) {
       setMeetingId(selectedMeetingId);
       setPdfFile(null);
       setAttachmentFile(null);
@@ -137,7 +140,7 @@ export default function Home() {
             setPdfFile(restoredFile);
           } catch (e) {
             console.error("Error restoring PDF file:", e);
-            alert("저장된 PDF 파일을 불러오는 데 실패했습니다.");
+            showToast("저장된 PDF 파일을 불러오는 데 실패했습니다.", "error");
           }
         }
 
@@ -219,7 +222,7 @@ export default function Home() {
 
       } catch (error) {
         console.error("Failed to restore meeting:", error);
-        alert("회의 기록을 불러오는 데 실패했습니다.");
+        showToast("회의 기록을 불러오는 데 실패했습니다.", "error");
       } finally {
         setIsProcessing(false);
       }
@@ -229,7 +232,7 @@ export default function Home() {
   // PDF Handling
   const handleFileSelected = async (file: File) => {
     if (!user) {
-      alert("로그인이 필요합니다.");
+      showToast("로그인이 필요합니다.", "error");
       return;
     }
 
@@ -240,8 +243,9 @@ export default function Home() {
       // [New] Check usage limits
       const usageCheck = await canCreateMeeting(user.uid);
       if (!usageCheck.allowed) {
-        alert(usageCheck.reason);
-        if (confirm("Pro로 업그레이드하시겠습니까?")) {
+        showToast(usageCheck.reason, "error");
+        const ok = await uiConfirm("Pro로 업그레이드하시겠습니까?");
+        if (ok) {
           window.location.href = "/pricing";
         }
         setIsProcessing(false);
@@ -264,7 +268,7 @@ export default function Home() {
       const names = extractNamesFromStructuredData(structuredItems);
 
       if (names.length === 0) {
-        alert("문서에서 이름을 찾을 수 없습니다.");
+        showToast("문서에서 이름을 찾을 수 없습니다.", "error");
         setIsProcessing(false);
         return;
       }
@@ -290,7 +294,7 @@ export default function Home() {
 
     } catch (error: any) {
       console.error(error);
-      alert(`분석 실패: ${error.message}`);
+      showToast(`분석 실패: ${error.message}`, "error");
       setPdfFile(null);
     } finally {
       setIsProcessing(false);
@@ -356,7 +360,7 @@ export default function Home() {
       console.log("Attachment saved to meeting:", url);
     } catch (error) {
       console.error("Attachment upload failed:", error);
-      alert("첨부파일 업로드 실패");
+      showToast("첨부파일 업로드 실패", "error");
       setAttachmentFile(null);
     } finally {
       setIsProcessing(false);
@@ -364,7 +368,8 @@ export default function Home() {
   };
 
   const handleRemoveAttachment = async () => {
-    if (!confirm("첨부파일을 삭제하시겠습니까?")) return;
+    const ok = await uiConfirm("첨부파일을 삭제하시겠습니까?");
+    if (!ok) return;
 
     setAttachmentFile(null);
     setAttachmentUrl(null);
@@ -403,18 +408,19 @@ export default function Home() {
 
   const handleSendRequests = async () => {
     if (!user) {
-      alert("로그인이 필요합니다.");
+      showToast("로그인이 필요합니다.", "error");
       return;
     }
 
     const toSend = attendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent'));
     if (toSend.length === 0) {
-      alert("전송할 대상이 없습니다.");
+      showToast("전송할 대상이 없습니다.", "error");
       return;
     }
 
     if (toSend.some(a => a.status === 'sent')) {
-      if (!confirm("이미 요청을 보낸 분이 포함되어 있습니다. 다시 보내시겠습니까?")) {
+      const ok = await uiConfirm("이미 요청을 보낸 분이 포함되어 있습니다. 다시 보내시겠습니까?");
+      if (!ok) {
         return;
       }
     }
@@ -460,7 +466,7 @@ export default function Home() {
       setShowModal(true);
     } catch (error: any) {
       console.error(error);
-      alert(`전송 실패: ${error.message}`);
+      showToast(`전송 실패: ${error.message}`, "error");
     } finally {
       setIsProcessing(false);
     }
@@ -505,9 +511,9 @@ export default function Home() {
     // Persistent Save if in a meeting
     if (meetingId && nextAttendees.length > 0) {
       await updateMeetingAttendees(meetingId, nextAttendees);
-      alert(`${templateAttendees.length}명의 템플릿 정보가 적용 및 저장되었습니다.`);
+      showToast(`${templateAttendees.length}명의 템플릿 정보가 적용 및 저장되었습니다.`, "success");
     } else {
-      alert(`${templateAttendees.length}명의 템플릿 정보가 적용되었습니다.`);
+      showToast(`${templateAttendees.length}명의 템플릿 정보가 적용되었습니다.`, "success");
     }
   };
 
@@ -575,15 +581,15 @@ export default function Home() {
       // Show alert
       setTimeout(() => {
         if (matchedCount > 0) {
-          alert(`${matchedCount}명의 정보를 업데이트했습니다.\n(매칭 예시: ${matchedNames.slice(0, 5).join(', ')})`);
+          showToast(`${matchedCount}명의 정보를 업데이트했습니다.`, "success");
           // [Analytics] Log bulk add usage
           if (user) logBulkAddUsed(user.uid, matchedCount);
         } else {
-          alert("일치하는 이름을 찾지 못했습니다.");
+          showToast("일치하는 이름을 찾지 못했습니다.", "error");
         }
       }, 100);
     } else {
-      alert("데이터를 인식하지 못했습니다. '이름 전화번호' 형식인지 확인해주세요.");
+      showToast("데이터를 인식하지 못했습니다. '이름 전화번호' 형식인지 확인해주세요.", "error");
     }
   };
 
@@ -612,7 +618,7 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
-          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v0.3.1</span>
+          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v0.3.2</span>
         </div>
         <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {user && (

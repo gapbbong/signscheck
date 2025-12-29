@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
+import { NotificationProvider } from "@/lib/NotificationContext";
 import TawkToWidget from "@/components/TawkToWidget";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -20,8 +21,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          {children}
-          <TawkToWidget />
+          <NotificationProvider>
+            {children}
+            <TawkToWidget />
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>
