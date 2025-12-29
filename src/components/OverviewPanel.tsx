@@ -28,6 +28,26 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
         }
     }, [user, currentMeetingId]);
 
+    // [New] Keyboard Shortcuts for 1-9
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.ctrlKey || e.altKey || e.metaKey) return;
+            const tag = (e.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+            const keyNum = parseInt(e.key);
+            if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= 9) {
+                const targetMeeting = meetings[keyNum - 1];
+                if (targetMeeting) {
+                    onSelectMeeting?.(targetMeeting.id, targetMeeting.fileName);
+                }
+            }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [meetings, onSelectMeeting]);
+
     const handleDelete = async (e: React.MouseEvent, meetingId: string) => {
         e.stopPropagation();
         if (confirm("정말로 이 회의 기록을 삭제하시겠습니까?")) {
@@ -84,7 +104,7 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
                     <div style={{ textAlign: 'center', color: '#64748b', marginTop: '1rem' }}>불러오는 중...</div>
                 ) : (
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                        {meetings.map((meeting) => (
+                        {meetings.map((meeting, index) => (
                             <li
                                 key={meeting.id}
                                 className="meeting-item"
@@ -100,10 +120,33 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
                                     position: 'relative'
                                 }}
                             >
-                                <div style={{ fontSize: '0.95rem', fontWeight: 500, color: '#e2e8f0', marginBottom: '0.3rem', paddingRight: '20px' }}>
+                                {/* Hotkey Badge */}
+                                {index < 9 && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        top: '-6px',
+                                        left: '-6px',
+                                        width: '18px',
+                                        height: '18px',
+                                        backgroundColor: '#3b82f6',
+                                        color: '#fff',
+                                        fontSize: '11px',
+                                        fontWeight: 'bold',
+                                        borderRadius: '4px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                                        zIndex: 5
+                                    }}>
+                                        {index + 1}
+                                    </div>
+                                )}
+
+                                <div style={{ fontSize: '0.95rem', fontWeight: 500, color: '#e2e8f0', marginBottom: '0.3rem', paddingLeft: '10px', paddingRight: '20px' }}>
                                     {meeting.fileName}
                                 </div>
-                                <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', justifyContent: 'space-between' }}>
+                                <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', justifyContent: 'space-between', paddingLeft: '10px' }}>
                                     <span>{formatDate(meeting.createdAt)}</span>
                                     {currentMeetingId === meeting.id && <span style={{ color: '#60a5fa' }}>Running ●</span>}
                                 </div>
