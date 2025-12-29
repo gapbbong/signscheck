@@ -704,7 +704,7 @@ export default function Home() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                     <h2 style={{ fontSize: '1rem', color: '#94a3b8', margin: 0 }}>미리보기 (Live Preview)</h2>
                     <span style={{ fontSize: '0.75rem', color: '#64748b', opacity: 0.8 }}>
-                      💡 팁: 🖱️드래그로 이동 | <kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '0 3px', borderRadius: '3px' }}>방향키</kbd>로 받은 서명의 위치 미세조정 (v0.0.1)
+                      💡 팁: 🖱️드래그로 이동 | <kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '0 3px', borderRadius: '3px' }}>방향키</kbd>로 받은 서명의 위치 미세조정 (v0.0.2)
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
