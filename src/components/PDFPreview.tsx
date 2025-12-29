@@ -457,86 +457,85 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 {signedAttendees.map((attendee, index) => {
                     const uniqueId = attendee.id || index.toString();
 
-                    // Grid Fallback
-                    const boxWidth = 140; // [Update] Optimized size
-                    const boxHeight = 50; // [Update] Optimized size
-                    const gap = 10;
-                    const cols = 4;
-                    const col = index % cols;
-                    const row = Math.floor(index / cols);
-                    let initLeft = 50 + col * (boxWidth + gap);
-                    let initTop = 100 + row * (boxHeight + gap);
+                    // Auto-Position Logic
+                    const foundCoord = nameCoordinates[attendee.name];
+                    if (foundCoord && scale) {
+                        const pdfX = foundCoord.x;
+                        const pdfY = foundCoord.y;
 
-                    // [Updated] Use Individual Header Delta (PDF units) scaled to runtime, else fallback to global offsetX
-                    const currentXOffset = foundCoord.individualDeltaXPdf ? (foundCoord.individualDeltaXPdf * scale) - 20 : offsetX;
-                    initLeft = canvasX + currentXOffset;
-                    initTop = canvasY + offsetY;
-                }
+                        const canvasX = pdfX * scale;
+                        const canvasY = (foundCoord.pageHeight - pdfY) * scale;
 
-                    const pos = positions[uniqueId] || {x: initLeft, y: initTop };
+                        // [Updated] Use Individual Header Delta (PDF units) scaled to runtime, else fallback to global offsetX
+                        const currentXOffset = foundCoord.individualDeltaXPdf ? (foundCoord.individualDeltaXPdf * scale) - 20 : offsetX;
+                        initLeft = canvasX + currentXOffset;
+                        initTop = canvasY + offsetY;
+                    }
 
-                return (
-                <div
-                    key={uniqueId}
-                    onMouseDown={(e) => handleMouseDown(e, uniqueId, initLeft, initTop)}
-                    style={{
-                        position: 'absolute',
-                        top: `${pos.y}px`,
-                        left: `${pos.x}px`,
-                        width: `${boxWidth}px`,
-                        height: `${boxHeight}px`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'move', // Changed from grab to move
-                        userSelect: 'none',
-                        zIndex: 50
-                    }}
-                >
-                    <div style={{
-                        border: '2px solid transparent',
-                        borderRadius: '4px',
-                        transition: 'border 0.2s',
-                        width: '100%',
-                        height: '100%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}
-                    >
-                        <img
-                            src={attendee.signatureUrl}
-                            alt="Signature"
+                    const pos = positions[uniqueId] || { x: initLeft, y: initTop };
+
+                    return (
+                        <div
+                            key={uniqueId}
+                            onMouseDown={(e) => handleMouseDown(e, uniqueId, initLeft, initTop)}
                             style={{
-                                maxWidth: '100%',
-                                maxHeight: '100%',
-                                filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))', // Add a subtle shadow instead of multiply
-                                pointerEvents: 'none'
+                                position: 'absolute',
+                                top: `${pos.y}px`,
+                                left: `${pos.x}px`,
+                                width: `${boxWidth}px`,
+                                height: `${boxHeight}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'move', // Changed from grab to move
+                                userSelect: 'none',
+                                zIndex: 50
                             }}
-                        />
-                    </div>
+                        >
+                            <div style={{
+                                border: '2px solid transparent',
+                                borderRadius: '4px',
+                                transition: 'border 0.2s',
+                                width: '100%',
+                                height: '100%',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                            }}
+                                onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'}
+                                onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}
+                            >
+                                <img
+                                    src={attendee.signatureUrl}
+                                    alt="Signature"
+                                    style={{
+                                        maxWidth: '100%',
+                                        maxHeight: '100%',
+                                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))', // Add a subtle shadow instead of multiply
+                                        pointerEvents: 'none'
+                                    }}
+                                />
+                            </div>
 
-                    {/* Name Tag */}
-                    <div style={{
-                        position: 'absolute',
-                        top: -18,
-                        left: 0,
-                        fontSize: '11px',
-                        color: '#64748b',
-                        fontWeight: 'bold',
-                        backgroundColor: 'rgba(255,255,255,0.9)',
-                        padding: '1px 4px',
-                        borderRadius: '2px',
-                        border: '1px solid #cbd5e1',
-                        pointerEvents: 'none',
-                        whiteSpace: 'nowrap'
-                    }}>
-                        {attendee.name} (서명본)
-                    </div>
-                </div>
-                );
+                            {/* Name Tag */}
+                            <div style={{
+                                position: 'absolute',
+                                top: -18,
+                                left: 0,
+                                fontSize: '11px',
+                                color: '#64748b',
+                                fontWeight: 'bold',
+                                backgroundColor: 'rgba(255,255,255,0.9)',
+                                padding: '1px 4px',
+                                borderRadius: '2px',
+                                border: '1px solid #cbd5e1',
+                                pointerEvents: 'none',
+                                whiteSpace: 'nowrap'
+                            }}>
+                                {attendee.name} (서명본)
+                            </div>
+                        </div>
+                    );
                 })}
             </div>
 
