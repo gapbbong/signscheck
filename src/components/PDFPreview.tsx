@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
-// [SSR Fix] Remove top-level pdfjsLib import to avoid DOMMatrix error during build
 import { PDFDocument } from 'pdf-lib';
 import { Attendee } from '@/lib/gas-service';
 import { updateMeetingHash } from '@/lib/meeting-service';
@@ -9,8 +8,8 @@ import { updateMeetingHash } from '@/lib/meeting-service';
 interface Props {
     file: File;
     attendees: (Attendee & { id?: string; status: string; signatureUrl?: string })[];
-    onConfirm?: () => void; // [New] Callback for Spacebar action
-    meetingId?: string | null; // [New] To save document hash
+    onConfirm?: () => void;
+    meetingId?: string | null;
 }
 
 export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Props) {
@@ -20,20 +19,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const [rotation, setRotation] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
 
-    // [New] Dynamic Offset Configuration
     const [offsetX, setOffsetX] = useState(0);
     const [offsetY, setOffsetY] = useState(-35);
 
-    // Track render task to cancel if needed
     const renderTaskRef = useRef<any>(null);
 
-    // [New] Keyboard Shortcuts
+    // [Fix] Keyboard Shortcuts: Priority to Standalone Arrows
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement).tagName;
             const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
-            // Arrow keys for Fine Tuning (1px step for just arrows, 5px for Ctrl, 20px for Shift)
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 if (isInput) return;
                 e.preventDefault();
@@ -41,14 +37,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 if (e.key === 'ArrowRight') setOffsetX(p => p + step);
                 if (e.key === 'ArrowLeft') setOffsetX(p => p - step);
-                if (e.key === 'ArrowDown') setOffsetY(p => p + step); // Screen Y goes down
+                if (e.key === 'ArrowDown') setOffsetY(p => p + step);
                 if (e.key === 'ArrowUp') setOffsetY(p => p - step);
             }
 
-            // Spacebar for "Next/Confirm"
             if (e.code === 'Space' && !e.ctrlKey && !e.shiftKey && onConfirm) {
                 if (!isInput) {
-                    e.preventDefault(); // Prevent scroll
+                    e.preventDefault();
                     onConfirm();
                 }
             }
@@ -60,7 +55,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
     const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
 
-    // 1. Load PDF & Auto-Detect Orientation & Map Types
     useEffect(() => {
         const loadPdf = async () => {
             const pdfjsLib = await import('pdfjs-dist');
@@ -76,85 +70,78 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const textContent = await page.getTextContent();
                 const unscaledViewport = page.getViewport({ scale: 1.0 });
 
-                // 2. Pre-process text: Sort and Merge items on the same line to fix split names
+                // 2. Clear Sort & Merge
                 const sortedItems = [...textContent.items].sort((a: any, b: any) => {
-                    // 2. Pre-process text: Sort and Merge items on the same line to fix split names
-                    const sortedItems = [...textContent.items].sort((a: any, b: any) => {
-                        const ay = a.transform[5], by = b.transform[5];
-                        if (Math.abs(ay - by) < 8) return a.transform[4] - b.transform[4]; // Relaxed Y to 8px
-                        return by - ay;
-                    });
+                    const ay = a.transform[5], by = b.transform[5];
+                    if (Math.abs(ay - by) < 8) return a.transform[4] - b.transform[4];
+                    return by - ay;
+                });
 
-                    const mergedItems: any[] = [];
-                    let currentItem: any = null;
-                    sortedItems.forEach((item: any) => {
-                        if (!currentItem) { currentItem = { ...item }; return; }
-                        const prevY = currentItem.transform[5], currY = item.transform[5];
-                        const prevRight = currentItem.transform[4] + (currentItem.width || 0);
-                        // Merge if close enough on the same visual line
-                        if (Math.abs(prevY - currY) < 8 && (item.transform[4] - prevRight) < 40) {
-                            currentItem.str += (currentItem.str.endsWith(' ') ? '' : ' ') + item.str;
-                        } else {
-                            mergedItems.push(currentItem);
-                            currentItem = { ...item };
-                        }
-                    });
-                    if (currentItem) mergedItems.push(currentItem);
+                const mergedItems: any[] = [];
+                let currentItem: any = null;
+                sortedItems.forEach((item: any) => {
+                    if (!currentItem) { currentItem = { ...item }; return; }
+                    const prevY = currentItem.transform[5], currY = item.transform[5];
+                    const prevRight = currentItem.transform[4] + (currentItem.width || 0);
+                    if (Math.abs(prevY - currY) < 8 && (item.transform[4] - prevRight) < 40) {
+                        currentItem.str += (currentItem.str.endsWith(' ') ? '' : ' ') + item.str;
+                    } else {
+                        mergedItems.push(currentItem);
+                        currentItem = { ...item };
+                    }
+                });
+                if (currentItem) mergedItems.push(currentItem);
 
-                    const coords: Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
-                    const nameHeaders: any[] = [], signHeaders: any[] = [];
+                const coords: Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
+                const nameHeaders: any[] = [], signHeaders: any[] = [];
 
-                    mergedItems.forEach((item: any) => {
-                        const str = item.str.replace(/\s+/g, '');
-                        if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) nameHeaders.push(item);
-                        if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) signHeaders.push(item);
-                    });
+                mergedItems.forEach((item: any) => {
+                    const str = item.str.replace(/\s+/g, '');
+                    if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) nameHeaders.push(item);
+                    if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) signHeaders.push(item);
+                });
 
-                    const headerDeltas: { nameX: number, deltaPdf: number }[] = [];
-                    nameHeaders.forEach(nh => {
-                        const nx = nh.transform[4], ny = nh.transform[5];
-                        // Search for signature header strictly on the right side on the same line
-                        const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 20 && sh.transform[4] > nx);
-                        if (sh) headerDeltas.push({ nameX: nx, deltaPdf: sh.transform[4] - nx });
-                    });
+                const headerDeltas: { nameX: number, deltaPdf: number }[] = [];
+                nameHeaders.forEach(nh => {
+                    const nx = nh.transform[4], ny = nh.transform[5];
+                    const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 20 && sh.transform[4] > nx);
+                    if (sh) headerDeltas.push({ nameX: nx, deltaPdf: sh.transform[4] - nx });
+                });
 
-                    mergedItems.forEach((item: any) => {
-                        const str = item.str.trim();
-                        if (str.length >= 2) {
-                            const matchedAttendee = attendees.find(a => {
-                                // Strip numbers and spaces for robust name matching (e.g. "7 이갑종" -> "이갑종")
-                                const cleanStr = str.replace(/[0-9\s\(\)\[\]\.]/g, '');
-                                const cleanName = a.name.replace(/\s/g, '');
-                                return cleanStr === cleanName || cleanStr.includes(cleanName);
-                            });
+                mergedItems.forEach((item: any) => {
+                    const str = item.str.trim();
+                    if (str.length >= 2) {
+                        const matchedAttendee = attendees.find(a => {
+                            const cleanStr = str.replace(/[0-9\s\(\)\[\]\.]/g, '');
+                            const cleanName = a.name.replace(/\s/g, '');
+                            return cleanStr === cleanName || cleanStr.includes(cleanName);
+                        });
 
-                            if (matchedAttendee) {
-                                const tx = item.transform[4], ty = item.transform[5];
-                                let bestDeltaPdf = 150; // Standard gap in pts for 2-column if detection fails
-                                if (headerDeltas.length > 0) {
-                                    // Find delta from the closest name header column
-                                    const closestHeader = headerDeltas.reduce((prev, curr) =>
-                                        Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
-                                    );
-                                    bestDeltaPdf = closestHeader.deltaPdf;
-                                }
-                                coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
+                        if (matchedAttendee) {
+                            const tx = item.transform[4], ty = item.transform[5];
+                            let bestDeltaPdf = 150;
+                            if (headerDeltas.length > 0) {
+                                const closestHeader = headerDeltas.reduce((prev, curr) =>
+                                    Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
+                                );
+                                bestDeltaPdf = closestHeader.deltaPdf;
                             }
+                            coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
                         }
-                    });
-                    console.log("Auto-Detected Name Positions & Header Deltas (Refined):", coords);
-                    setNameCoordinates(coords);
+                    }
+                });
+                console.log("Auto-Detected Name Positions (Fixed):", coords);
+                setNameCoordinates(coords);
 
-                    // Reset global offsets for a fresh file
-                    setOffsetX(0);
-                    setOffsetY(-35);
+                setOffsetX(0);
+                setOffsetY(-35);
 
-                } catch (e) {
-                    console.error("Auto-analysis failed", e);
-                }
-            };
-            loadPdf();
-        }, [file, attendees]);
+            } catch (e) {
+                console.error("Auto-analysis failed", e);
+            }
+        };
+        loadPdf();
+    }, [file, attendees]);
 
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current) return;
@@ -258,8 +245,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     if (foundCoord && scale) {
                         const pdfX = foundCoord.x, pdfY = foundCoord.y;
                         const canvasX = pdfX * scale, canvasY = (foundCoord.pageHeight - pdfY) * scale;
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 80) * scale;
-                        return { x: canvasX + baseDeltaX - 60 + offsetX, y: canvasY + offsetY };
+                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 150) * scale;
+                        return { x: canvasX + baseDeltaX - 40 + offsetX, y: canvasY - 60 + offsetY };
                     }
                     const index = attendees.findIndex(a => a.name === attendee.name);
                     const cols = 4, col = index % cols, row = Math.floor(index / cols);
@@ -336,11 +323,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const foundCoord = nameCoordinates[attendee.name];
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale, canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                        // [Fine-tuned] Combine Auto-Delta + Manual Offset. 
-                        // Using -40 to align the 140px box better over the signature field start.
                         const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 150) * scale;
                         initLeft = canvasX + baseDeltaX - 40 + offsetX;
-                        initTop = canvasY - 60 + offsetY; // Elevated by 60 to enter the cell box correctly
+                        initTop = canvasY - 60 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
@@ -350,9 +335,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
                                 <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))', pointerEvents: 'none' }} />
                             </div>
-                            <div style={{ position: 'absolute', top: -20, left: 0, fontSize: '12px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
+                            <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
                                 {attendee.name}
-                                <span style={{ color: '#ef4444', marginLeft: '8px', fontSize: '13px' }}>[X:{Math.round(pos.x)} Y:{Math.round(pos.y)}]</span>
+                                <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>[X:{Math.round(pos.x)} Y:{Math.round(pos.y)}]</span>
                             </div>
                         </div>
                     );
