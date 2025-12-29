@@ -16,6 +16,7 @@ export default function SignPage() {
     const [submitted, setSubmitted] = useState(false);
     const [isChecked, setIsChecked] = useState(false);
     const [hasSigned, setHasSigned] = useState(false); // [New] Validation state
+    const [canvasHeight, setCanvasHeight] = useState(200); // [New] Dynamic height state
     const [txtContent, setTxtContent] = useState<string | null>(null); // [New] For .txt attachments
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -91,7 +92,13 @@ export default function SignPage() {
         if (!loading && requestData && canvasRef.current) {
             const canvas = canvasRef.current;
             canvas.width = canvas.offsetWidth || window.innerWidth - 48;
-            canvas.height = 200; // [Update] Half height for mobile optimization
+
+            // [Update] Double height for PC (> 768px), keep 200 for mobile
+            const isDesktop = window.innerWidth > 768;
+            const targetHeight = isDesktop ? 400 : 200;
+
+            canvas.height = targetHeight;
+            setCanvasHeight(targetHeight);
         }
     }, [loading, requestData]);
 
@@ -313,7 +320,7 @@ export default function SignPage() {
                         </button>
                     </div>
 
-                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: '200px' }}>
+                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: `${canvasHeight}px` }}>
                         <canvas
                             ref={canvasRef}
                             style={{ touchAction: 'none', width: '100%', height: '100%' }}
