@@ -457,6 +457,16 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 {signedAttendees.map((attendee, index) => {
                     const uniqueId = attendee.id || index.toString();
 
+                    // Grid Fallback (Default if auto-position fails)
+                    const boxWidth = 140;
+                    const boxHeight = 50;
+                    const gap = 10;
+                    const cols = 4;
+                    const col = index % cols;
+                    const row = Math.floor(index / cols);
+                    let initLeft = 50 + col * (boxWidth + gap);
+                    let initTop = 100 + row * (boxHeight + gap);
+
                     // Auto-Position Logic
                     const foundCoord = nameCoordinates[attendee.name];
                     if (foundCoord && scale) {
