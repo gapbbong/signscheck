@@ -130,7 +130,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const closestHeader = headerDeltas.reduce((prev, curr) =>
                                     Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
                                 );
-                                bestDeltaPdf = closestHeader.deltaPdf;
+                                // Use detected delta, but enforce minimum of 200 to ensure separation
+                                bestDeltaPdf = Math.max(closestHeader.deltaPdf, 200);
                             }
                             coords[matchedAttendee.name] = {
                                 x: tx,
@@ -139,10 +140,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 pageHeight: unscaledViewport.height,
                                 individualDeltaXPdf: bestDeltaPdf
                             };
+                            console.log(`[${matchedAttendee.name}] Delta: ${bestDeltaPdf.toFixed(1)}px, Name X: ${tx.toFixed(1)}px`);
                         }
                     }
                 });
-                console.log("Intelligent Header Deltas:", headerDeltas);
+                console.log("📊 Intelligent Header Deltas:", headerDeltas);
+                console.log("📍 Name Coordinates:", coords);
                 setNameCoordinates(coords);
 
                 setOffsetX(0);
