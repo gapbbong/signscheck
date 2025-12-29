@@ -21,6 +21,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
     const [offsetX, setOffsetX] = useState(0);
     const [offsetY, setOffsetY] = useState(-35);
+    const [sigGlobalScale, setSigGlobalScale] = useState(1.0);
 
     const renderTaskRef = useRef<any>(null);
 
@@ -296,8 +297,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pos = positions[uniqueId] || initPos;
                 const pdfX = pos.x / scale;
                 const pdfY = pageHeight - (pos.y / scale);
-                const targetWidth = 140; // Standard PDF units
-                const targetHeight = 50; // Standard PDF units
+
+                // [Fix] Preserve Aspect Ratio (Standard is 3:1 for 600x200)
+                const baseWidth = 140;
+                const targetWidth = baseWidth * sigGlobalScale;
+                const aspect = sigImage.height / sigImage.width;
+                const targetHeight = targetWidth * aspect;
 
                 page.drawImage(sigImage, {
                     x: pdfX,
@@ -339,9 +344,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: '5px', background: 'rgba(255,255,255,0.8)', padding: '4px', borderRadius: '4px', backdropFilter: 'blur(4px)' }}>
                     <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155' }}>↔ X:</span>
-                    <input type="number" value={offsetX} onChange={(e) => setOffsetX(Number(e.target.value))} style={{ width: '50px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '5px' }}>↕ Y:</span>
-                    <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '50px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+                    <input type="number" value={offsetX} onChange={(e) => setOffsetX(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>↕ Y:</span>
+                    <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>🔍 Size:</span>
+                    <input type="number" step="0.1" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
                 </div>
                 <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↻ Rotate</button>
                 <button onClick={() => setShowDebug(!showDebug)} style={{ backgroundColor: showDebug ? '#ef4444' : 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>🐞 Debug</button>
@@ -374,7 +381,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         }} title={`Name: ${name}`} />
                         {/* Sign Target (Green) */}
                         <div style={{
-                            position: 'absolute', top: signY, left: signX, width: 140 * scale, height: 50 * scale,
+                            position: 'absolute', top: signY, left: signX, width: 140 * sigGlobalScale * scale, height: (140 / 3) * sigGlobalScale * scale,
                             border: '1px solid rgba(0, 255, 0, 0.5)', backgroundColor: 'rgba(0, 255, 0, 0.1)'
                         }} title={`Target for ${name}`} />
                         {/* Connecting Line */}
@@ -419,8 +426,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 position: 'absolute',
                                 top: `${pos.y}px`,
                                 left: `${pos.x}px`,
-                                width: `${boxWidth * scale}px`,
-                                height: `${boxHeight * scale}px`,
+                                width: `${140 * sigGlobalScale * scale}px`,
+                                height: `${(140 / 3) * sigGlobalScale * scale}px`,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
