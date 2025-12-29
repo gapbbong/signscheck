@@ -119,12 +119,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5];
-                            let bestDeltaPdf = 180; // Default fallback for single column width
+                            let bestDeltaPdf = 320; // [Master Tuning] Default for wide column gap
                             if (headerDeltas.length > 0) {
                                 const closestHeader = headerDeltas.reduce((prev, curr) =>
                                     Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
                                 );
-                                bestDeltaPdf = closestHeader.deltaPdf; // Use header distance exactly
+                                bestDeltaPdf = closestHeader.deltaPdf + 180; // Buffer for signature box centering
                             }
                             coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
                         }
@@ -326,9 +326,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         // [Final Golden Tuning] 
                         // Target X: 431 -> canvasX + (320*1.2) - 15 = 431 (if canvasX=60)
                         // Target Y: 620 -> canvasY + 130 = 620 (if canvasY=490)
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 180) * scale;
-                        initLeft = canvasX + baseDeltaX - 25 + offsetX;
-                        initTop = canvasY + 230 + offsetY;
+                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 320) * scale;
+                        initLeft = canvasX + baseDeltaX - 66 + offsetX;
+                        initTop = canvasY + 168 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
