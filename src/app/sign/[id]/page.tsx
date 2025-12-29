@@ -237,8 +237,10 @@ export default function SignPage() {
             <main style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
                 {/* 1. Main PDF Preview */}
                 <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                    <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>서명할 문서 확인 (Preview)</label>
-                    <div style={{ width: '100%', minHeight: '300px', height: 'auto', maxHeight: '600px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', aspectRatio: '1 / 1.4' }}>
+                    <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>
+                        서명할 문서 확인 (Preview) <span style={{ color: '#ef4444', marginLeft: '8px' }}>※ 서명란은 페이지 맨 아래에 있습니다</span>
+                    </label>
+                    <div style={{ width: '100%', minHeight: '600px', height: '80vh', maxHeight: '1200px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', aspectRatio: '1 / 1.4' }}>
                         {requestData.mainPdfUrl ? (
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
