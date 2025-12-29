@@ -608,7 +608,7 @@ export default function Home() {
         <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {user && (
             <>
-              <span>Host: <strong style={{ color: '#f1f5f9' }}>{user.displayName}</strong></span>
+              <span><strong style={{ color: '#f1f5f9' }}>{user.displayName}</strong></span>
               <button onClick={signOut} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontSize: '0.75rem' }}>(Sign Out)</button>
             </>
           )}
