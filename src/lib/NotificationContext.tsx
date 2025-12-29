@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
 interface Toast {
     id: string;
@@ -35,9 +35,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
     const showToast = useCallback((message: string, type: 'info' | 'success' | 'error' = 'info') => {
         const id = Math.random().toString(36).substring(2, 9);
-        setToasts(prev => [...prev, { id, message, type }]);
+        setToasts((prev: Toast[]) => [...prev, { id, message, type }]);
         setTimeout(() => {
-            setToasts(prev => prev.filter(t => t.id !== id));
+            setToasts((prev: Toast[]) => prev.filter(t => t.id !== id));
         }, 3000);
     }, []);
 
@@ -74,7 +74,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
             {/* Toast Container */}
             <div style={{ position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 9999, display: 'flex', flexDirection: 'column', gap: '8px', pointerEvents: 'none' }}>
-                {toasts.map(t => (
+                {toasts.map((t: Toast) => (
                     <div key={t.id} style={{
                         background: t.type === 'error' ? '#ef4444' : (t.type === 'success' ? '#22c55e' : '#1e293b'),
                         color: '#fff',
@@ -95,25 +95,10 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
             {/* Confirm Dialog */}
             {confirmReq && (
-                <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-                    <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', animation: 'pop-in 0.2s ease-out' }}>
-                        <p style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '24px', textAlign: 'center', whiteSpace: 'pre-wrap' }}>{confirmReq.message}</p>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            <button
-                                onClick={() => handleConfirmResponse(false)}
-                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}
-                            >
-                                취소
-                            </button>
-                            <button
-                                onClick={() => handleConfirmResponse(true)}
-                                style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: 'linear-gradient(to right, #60a5fa, #a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
-                            >
-                                확인
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ConfirmDialog
+                    message={confirmReq.message}
+                    onResponse={handleConfirmResponse}
+                />
             )}
 
             {/* Prompt Dialog */}
@@ -162,6 +147,45 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         }
       `}</style>
         </NotificationContext.Provider>
+    );
+}
+
+function ConfirmDialog({ message, onResponse }: { message: string, onResponse: (v: boolean) => void }) {
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onResponse(true);
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                onResponse(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onResponse]);
+
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+            <div style={{ background: '#1e293b', border: '1px solid #334155', borderRadius: '16px', padding: '24px', maxWidth: '400px', width: '90%', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', animation: 'pop-in 0.2s ease-out' }}>
+                <p style={{ color: '#f1f5f9', fontSize: '16px', marginBottom: '24px', textAlign: 'center', whiteSpace: 'pre-wrap' }}>{message}</p>
+                <div style={{ display: 'flex', gap: '12px' }}>
+                    <button
+                        onClick={() => onResponse(false)}
+                        style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #334155', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                        취소
+                    </button>
+                    <button
+                        onClick={() => onResponse(true)}
+                        style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: 'linear-gradient(to right, #60a5fa, #a855f7)', color: '#fff', cursor: 'pointer', fontWeight: 600 }}
+                    >
+                        확인
+                    </button>
+                </div>
+            </div>
+        </div>
     );
 }
 
