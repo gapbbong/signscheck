@@ -395,11 +395,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     const foundCoord = nameCoordinates[attendee.name];
 
-                    // [Restore] Force '이갑종' to bottom right as requested (Dynamic Calculation)
-                    if (attendee.name === '이갑종' && pageSize) {
-                        // Place at absolute bottom-right with minimal padding (10px) to maximize outward position
-                        initLeft = pageSize.width - (140 * scale) - 10;
-                        initTop = pageSize.height - (50 * scale) - 10;
+                    // [Restore] Force '이갑종' to bottom right as requested (Specific User Test Coordinate)
+                    if (attendee.name === '이갑종') {
+                        initLeft = 714;
+                        initTop = 1009;
                     } else if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
