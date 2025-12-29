@@ -140,6 +140,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 console.log("Auto-Detected Name Positions & Header Deltas:", coords);
                 setNameCoordinates(coords);
 
+                // Reset global offsets for a fresh file
+                setOffsetX(0);
+                setOffsetY(-35);
                 // [Done] Header-based delta analysis complete. Fallbacks handled above.
 
             } catch (e) {
@@ -447,9 +450,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const canvasX = pdfX * scale;
                         const canvasY = (foundCoord.pageHeight - pdfY) * scale;
 
-                        // [Updated] Use Individual Header Delta (PDF units) scaled to runtime, else fallback to global offsetX
-                        const currentXOffset = foundCoord.individualDeltaXPdf ? (foundCoord.individualDeltaXPdf * scale) - 20 : offsetX;
-                        initLeft = canvasX + currentXOffset;
+                        // [Fix] Combine Auto-Delta + Manual Offset. 
+                        // Using -60 to center the 140px box over the signature column.
+                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 80) * scale;
+                        initLeft = canvasX + baseDeltaX - 60 + offsetX;
                         initTop = canvasY + offsetY;
                     }
 
