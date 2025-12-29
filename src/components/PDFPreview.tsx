@@ -438,8 +438,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const cols = 4;
                     const col = index % cols;
                     const row = Math.floor(index / cols);
-                    let initLeft = 50 + col * (boxWidth + gap);
-                    let initTop = 100 + row * (boxHeight + gap);
+                    let initLeft = 50 + col * (boxWidth + gap) + offsetX;
+                    let initTop = 100 + row * (boxHeight + gap) + offsetY;
 
                     // Auto-Position Logic
                     const foundCoord = nameCoordinates[attendee.name];
