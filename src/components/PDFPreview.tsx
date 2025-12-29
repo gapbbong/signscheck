@@ -30,23 +30,24 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     // [New] Keyboard Shortcuts
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Priority: Ctrl + Arrows for Fine Tuning
-            if (e.ctrlKey) {
-                if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                    e.preventDefault(); // Key fix: Prevent page scrolling
-                    const step = e.shiftKey ? 20 : 5; // Increased sensitivity: 1->5, 10->20
+            const tag = (e.target as HTMLElement).tagName;
+            const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
 
-                    if (e.key === 'ArrowRight') setOffsetX(p => p + step);
-                    if (e.key === 'ArrowLeft') setOffsetX(p => p - step);
-                    if (e.key === 'ArrowDown') setOffsetY(p => p + step); // Screen Y goes down
-                    if (e.key === 'ArrowUp') setOffsetY(p => p - step);
-                }
+            // Arrow keys for Fine Tuning (1px step for just arrows, 5px for Ctrl, 20px for Shift)
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                if (isInput) return;
+                e.preventDefault();
+                const step = e.shiftKey ? 20 : (e.ctrlKey ? 5 : 1);
+
+                if (e.key === 'ArrowRight') setOffsetX(p => p + step);
+                if (e.key === 'ArrowLeft') setOffsetX(p => p - step);
+                if (e.key === 'ArrowDown') setOffsetY(p => p + step); // Screen Y goes down
+                if (e.key === 'ArrowUp') setOffsetY(p => p - step);
             }
 
             // Spacebar for "Next/Confirm"
             if (e.code === 'Space' && !e.ctrlKey && !e.shiftKey && onConfirm) {
-                const tag = (e.target as HTMLElement).tagName;
-                if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+                if (!isInput) {
                     e.preventDefault(); // Prevent scroll
                     onConfirm();
                 }
@@ -351,6 +352,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             </div>
                             <div style={{ position: 'absolute', top: -18, left: 0, fontSize: '11px', color: '#64748b', fontWeight: 'bold', backgroundColor: 'rgba(255,255,255,0.9)', padding: '1px 4px', borderRadius: '2px', border: '1px solid #cbd5e1', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
                                 {attendee.name} (서명본)
+                                <span style={{ color: '#ef4444', marginLeft: '6px' }}>X:{Math.round(pos.x)} Y:{Math.round(pos.y)}</span>
                             </div>
                         </div>
                     );
