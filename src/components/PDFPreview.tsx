@@ -351,7 +351,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 <button onClick={handleDownload} disabled={isDownloading} style={{ backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.4rem 1rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}>{isDownloading ? 'Processing...' : '💾 Save PDF'}</button>
             </div>
 
-            <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: 'auto' }} />
+            <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto', margin: '0 auto' }} />
 
             {/* Debug Layers */}
             {showDebug && Object.entries(nameCoordinates).map(([name, coord]) => {
