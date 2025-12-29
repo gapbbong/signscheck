@@ -138,11 +138,12 @@ export default function SimulationModal({ isOpen, onClose, links }: SimulationMo
                                 const parts = l.split(': ');
                                 const name = parts[0];
                                 const url = parts[1] || "";
-                                return `${name}\n${url}`;
+                                // [Update] URL first with a trailing space and name below for better linkify compatibility
+                                return `${url} \n(${name}님 서명 링크)`;
                             }).join('\n\n') + '\n';
 
                             navigator.clipboard.writeText(allText);
-                            alert("메신저 최적화 가나다순 복사가 완료되었습니다! 📋");
+                            alert("메신저 호환성 강화 복사가 완료되었습니다! 📋\n(링크 뒤에 공백이 추가되어 즉시 활성화될 확률이 높습니다)");
                         }}
                         style={{
                             backgroundColor: '#0f172a',
