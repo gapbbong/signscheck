@@ -61,7 +61,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     }, [onConfirm]);
 
     // [New] Text Coordinate Map (stores PDF point coords)
-    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, pageHeight: number }>>({});
+    // [New] Text Coordinate Map (stores PDF point coords)
+    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
 
     // 1. Load PDF & Auto-Detect Orientation & Map Types
     useEffect(() => {
@@ -81,19 +82,30 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const textContent = await page.getTextContent();
                 const unscaledViewport = page.getViewport({ scale: 1.0 }); // Use base scale for coords
 
-                // 2. Name Mapping & Grid Analysis (Enhanced with Anchors)
-                const coords: Record<string, { x: number, y: number, pageHeight: number, anchorX?: number }> = {};
-                const rows: Record<number, number[]> = {}; // y -> [x, x, x]
+                // 2. Header & Name Mapping & Grid Analysis
+                const coords: Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
 
-                // Find potential anchor points (boxes, labels)
-                const anchorPoints: { x: number, y: number, text: string }[] = [];
+                // Find Header Anchors (교사명, 성명, 서명, 이름)
+                const nameHeaders: any[] = [];
+                const signHeaders: any[] = [];
+
                 textContent.items.forEach((item: any) => {
-                    const str = item.str.trim();
-                    if (str.includes('(인)') || str.includes('서명') || str.includes('□') || str.includes(' (인)')) {
-                        anchorPoints.push({
-                            x: item.transform[4],
-                            y: item.transform[5],
-                            text: str
+                    const str = item.str.replace(/\s+/g, '');
+                    if (['교사명', '성명', '이름', '성명', '성 명'].includes(str)) nameHeaders.push(item);
+                    if (['서명', '서명본', '(인)', '서 명', '서  명'].includes(str)) signHeaders.push(item);
+                });
+
+                // Calculate horizontal deltas from headers in PDF Units
+                const headerDeltas: { nameX: number, deltaPdf: number }[] = [];
+                nameHeaders.forEach(nh => {
+                    const nx = nh.transform[4];
+                    const ny = nh.transform[5];
+                    // Find the closest "서명" header on the same line (y tolerance 15)
+                    const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 15 && sh.transform[4] > nx);
+                    if (sh) {
+                        headerDeltas.push({
+                            nameX: nx,
+                            deltaPdf: sh.transform[4] - nx
                         });
                     }
                 });
@@ -101,75 +113,34 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 textContent.items.forEach((item: any) => {
                     const str = item.str.trim();
                     if (str.length >= 2) {
-                        const matchedAttendee = attendees.find(a => str === a.name || str.includes(a.name));
+                        // Stricter matching: exact match or starts with name
+                        const matchedAttendee = attendees.find(a => str === a.name || str.startsWith(a.name) || (str.includes(a.name) && str.length <= a.name.length + 2));
                         if (matchedAttendee) {
                             const tx = item.transform[4];
                             const ty = item.transform[5];
 
-                            // Find the nearest anchor point on the SAME line (y tolerance 10)
-                            const nearbyAnchor = anchorPoints.find(ap =>
-                                Math.abs(ap.y - ty) < 10 && ap.x > tx && ap.x < tx + 200
-                            );
+                            // Find the header delta this name belongs to (closest NameHeader horizontally)
+                            let bestDeltaPdf = 80; // Default fallback
+                            if (headerDeltas.length > 0) {
+                                const closestHeader = headerDeltas.reduce((prev, curr) =>
+                                    Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
+                                );
+                                bestDeltaPdf = closestHeader.deltaPdf;
+                            }
 
                             coords[matchedAttendee.name] = {
                                 x: tx,
                                 y: ty,
                                 pageHeight: unscaledViewport.height,
-                                anchorX: nearbyAnchor?.x
+                                individualDeltaXPdf: bestDeltaPdf
                             };
-
-                            const rowKey = Object.keys(rows).find(k => Math.abs(Number(k) - ty) < 5);
-                            if (rowKey) {
-                                rows[Number(rowKey)].push(tx);
-                            } else {
-                                rows[ty] = [tx];
-                            }
                         }
                     }
                 });
-                console.log("Auto-Detected Name Positions & Anchors:", coords);
+                console.log("Auto-Detected Name Positions & Header Deltas:", coords);
                 setNameCoordinates(coords);
 
-                // 3. Smart Gap & Anchor Calibration
-                const anchorOffsets: number[] = [];
-                Object.values(coords).forEach(c => {
-                    if (c.anchorX) {
-                        anchorOffsets.push((c.anchorX - c.x) * 1.2); // PDF to Pixel scale approx
-                    }
-                });
-
-                if (anchorOffsets.length > 0) {
-                    const avgAnchorOffset = anchorOffsets.reduce((a, b) => a + b, 0) / anchorOffsets.length;
-                    console.log(`Smart Anchor Analysis: Applying average offset ${avgAnchorOffset}px`);
-                    // Offset to center the 140px box on the anchor
-                    setOffsetX(avgAnchorOffset - 60);
-                    setOffsetY(-35); // Default stable Y
-                } else {
-                    // Fallback to gap analysis
-                    let totalGap = 0;
-                    let gapCount = 0;
-                    Object.values(rows).forEach(rowXs => {
-                        if (rowXs.length > 1) {
-                            rowXs.sort((a, b) => a - b);
-                            for (let i = 0; i < rowXs.length - 1; i++) {
-                                const gap = rowXs[i + 1] - rowXs[i];
-                                if (gap > 50 && gap < 500) {
-                                    totalGap += gap;
-                                    gapCount++;
-                                }
-                            }
-                        }
-                    });
-
-                    if (gapCount > 0) {
-                        const avgGap = totalGap / gapCount;
-                        const boxWidth = 120;
-                        const scaleFactor = 1.2;
-                        const gapPixels = avgGap * scaleFactor;
-                        const centerOffset = (gapPixels / 2) - (boxWidth / 2);
-                        setOffsetX(centerOffset);
-                    }
-                }
+                // [Done] Header-based delta analysis complete. Fallbacks handled above.
 
             } catch (e) {
                 console.error("Auto-analysis failed", e);
