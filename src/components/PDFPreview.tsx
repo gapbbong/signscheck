@@ -24,11 +24,18 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
     const renderTaskRef = useRef<any>(null);
 
+    const [showDebug, setShowDebug] = useState(false);
+
     // [Fix] Keyboard Shortcuts: Priority to Standalone Arrows
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement).tagName;
             const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
+
+            if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                setShowDebug(prev => !prev);
+            }
 
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 if (isInput) return;
@@ -54,6 +61,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     }, [onConfirm]);
 
     const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
+    const [debugHeaderDeltas, setDebugHeaderDeltas] = useState<any[]>([]);
 
     useEffect(() => {
         const loadPdf = async () => {
@@ -113,6 +121,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         headerDeltas.push({ nameX: nx, deltaPdf: centerDelta });
                     }
                 });
+                setDebugHeaderDeltas(headerDeltas);
 
                 mergedItems.forEach((item: any) => {
                     const str = item.str.trim();
@@ -330,6 +339,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '50px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
                 </div>
                 <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↻ Rotate</button>
+                <button onClick={() => setShowDebug(!showDebug)} style={{ backgroundColor: showDebug ? '#ef4444' : 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>🐞 Debug</button>
             </div>
 
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
@@ -337,6 +347,38 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             </div>
 
             <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: 'auto' }} />
+
+            {/* Debug Layers */}
+            {showDebug && Object.entries(nameCoordinates).map(([name, coord]) => {
+                const x = coord.x * scale;
+                const y = (coord.pageHeight - coord.y) * scale;
+                const w = coord.w * scale;
+                // Just use 20 for h for visual
+                const h = 20 * scale;
+
+                // Predicted Sign Box
+                const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 280) * scale) - (140 * scale / 2) + offsetX;
+                const signY = y + 10 + offsetY;
+
+                return (
+                    <div key={`debug-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
+                        {/* Name Box (Red) */}
+                        <div style={{
+                            position: 'absolute', top: y, left: x, width: w, height: h,
+                            border: '1px solid rgba(255, 0, 0, 0.5)', backgroundColor: 'rgba(255, 0, 0, 0.1)'
+                        }} title={`Name: ${name}`} />
+                        {/* Sign Target (Green) */}
+                        <div style={{
+                            position: 'absolute', top: signY, left: signX, width: 140 * scale, height: 50 * scale,
+                            border: '1px solid rgba(0, 255, 0, 0.5)', backgroundColor: 'rgba(0, 255, 0, 0.1)'
+                        }} title={`Target for ${name}`} />
+                        {/* Connecting Line */}
+                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
+                            <line x1={x + w / 2} y1={y + h / 2} x2={signX + (70 * scale)} y2={signY + (25 * scale)} stroke="rgba(0,0,255,0.3)" strokeWidth="1" />
+                        </svg>
+                    </div>
+                );
+            })}
 
             <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}>
                 {signedAttendees.map((attendee, index) => {
@@ -348,11 +390,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     const foundCoord = nameCoordinates[attendee.name];
 
-                    // DEBUG: Force 이갑종 to A4 paper theoretical end (714x1010 scaled)
-                    if (attendee.name === '이갑종') {
-                        initLeft = 550;  // Right edge minus signature width
-                        initTop = 950;   // Bottom edge minus signature height
-                    } else if (foundCoord && scale) {
+                    if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
                         const canvasW = foundCoord.w * scale;
