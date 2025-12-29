@@ -119,7 +119,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5];
-                            let bestDeltaPdf = 150;
+                            let bestDeltaPdf = 230; // [Golden Tuning] Switched to 230 for 2-column gap
                             if (headerDeltas.length > 0) {
                                 const closestHeader = headerDeltas.reduce((prev, curr) =>
                                     Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
@@ -134,7 +134,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 setNameCoordinates(coords);
 
                 setOffsetX(0);
-                setOffsetY(-35);
+                setOffsetY(0); // [Golden Tuning] Base formula is now accurate, start at 0
 
             } catch (e) {
                 console.error("Auto-analysis failed", e);
