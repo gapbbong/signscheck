@@ -388,7 +388,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             {/* Header Labels (Blue) - Persistent as requested */}
             {headerCoords.map((hc, i) => {
                 const x = hc.x * scale;
-                const y = (pageSize?.height || 842 - hc.y) * scale; // Fallback h
+                const y = ((pageSize?.height || 842) - hc.y) * scale;
                 return (
                     <div key={`header-${i}`} style={{ position: 'absolute', top: y, left: x, pointerEvents: 'none', zIndex: 40 }}>
                         <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(59,130,246,0.9)', color: 'white', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
