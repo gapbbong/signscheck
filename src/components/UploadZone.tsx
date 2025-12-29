@@ -116,7 +116,7 @@ export default function UploadZone({ onFileSelected }: Props) {
                         <div style={stepBadgeStyle}>5</div>
                         <div>
                             <div style={stepTitleStyle}>서약 위치 지정</div>
-                            <div style={stepDescStyle}>화면 중앙 미리보기 영역에서 받은 서명을 보고 마우스나 Ctrl+방향키로 위치 조절</div>
+                            <div style={stepDescStyle}>화면 중앙 미리보기 영역에서 받은 서명을 보고 마우스나 방향키로 위치 조절</div>
                         </div>
                     </div>
 
