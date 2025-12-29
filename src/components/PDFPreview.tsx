@@ -157,19 +157,21 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             let bestDeltaPdf = 120; // Reduced fallback from 280
 
                             if (headerDeltas.length > 0) {
-                                // Find delta from the header in the same "band" (column)
-                                const sameBandHeader = headerDeltas.find(h =>
+                                // Find the CLOSEST header in the same vertical band/column
+                                const possibleHeaders = headerDeltas.filter(h =>
                                     Math.abs(h.nameX - tx) < 100 && ty > h.band.yMin && ty < h.band.yMax
                                 );
 
-                                if (sameBandHeader) {
+                                if (possibleHeaders.length > 0) {
+                                    const sameBandHeader = possibleHeaders.sort((a, b) => Math.abs(a.nameX - tx) - Math.abs(b.nameX - tx))[0];
                                     bestDeltaPdf = sameBandHeader.deltaPdf;
                                 } else {
                                     // Fallback to closest header by X only
                                     const closestHeader = headerDeltas.reduce((prev, curr) =>
-                                        Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
+                                        Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev,
+                                        headerDeltas[0]
                                     );
-                                    bestDeltaPdf = Math.max(closestHeader.deltaPdf, 200);
+                                    bestDeltaPdf = closestHeader.deltaPdf;
                                 }
                             }
                             coords[matchedAttendee.name] = {
@@ -435,8 +437,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const h = 20 * scale;
 
                         const BASE_W = 110;
-                        const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 280) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                        const signY = y + 10 + offsetY;
+                        const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
+                        const signY = y + offsetY; // Exactly on the baseline Y as requested
 
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
@@ -485,13 +487,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasW = foundCoord.w * scale;
 
                                 const nameCenter = canvasX + canvasW / 2;
-                                const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
+                                const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 120) * scale;
 
                                 const currentSigWidth = 110 * sigGlobalScale;
                                 const canvasSigWidth = currentSigWidth * scale;
 
                                 initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                                initTop = canvasY + 10 + offsetY;
+                                initTop = canvasY + offsetY; // On baseline
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
