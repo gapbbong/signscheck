@@ -53,7 +53,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onConfirm]);
 
-    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
+    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
 
     useEffect(() => {
         const loadPdf = async () => {
@@ -103,9 +103,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 const headerDeltas: { nameX: number, deltaPdf: number }[] = [];
                 nameHeaders.forEach(nh => {
-                    const nx = nh.transform[4], ny = nh.transform[5];
+                    const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3; // Estimated width if missing
+                    // Find sign header on same line
                     const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 20 && sh.transform[4] > nx);
-                    if (sh) headerDeltas.push({ nameX: nx, deltaPdf: sh.transform[4] - nx });
+                    if (sh) {
+                        const sx = sh.transform[4], sw = sh.width || sh.transform[0] * 2;
+                        // Distance from name-start to sign-center
+                        const centerDelta = (sx + sw / 2) - (nx + nw / 2);
+                        headerDeltas.push({ nameX: nx, deltaPdf: centerDelta });
+                    }
                 });
 
                 mergedItems.forEach((item: any) => {
@@ -118,19 +124,26 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         });
 
                         if (matchedAttendee) {
-                            const tx = item.transform[4], ty = item.transform[5];
-                            let bestDeltaPdf = 320; // [Master Tuning] Default for wide column gap
+                            const tx = item.transform[4], ty = item.transform[5], tw = item.width || item.transform[0] * 2;
+                            let bestDeltaPdf = 250; // Dynamic fallback
                             if (headerDeltas.length > 0) {
                                 const closestHeader = headerDeltas.reduce((prev, curr) =>
                                     Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
                                 );
-                                bestDeltaPdf = closestHeader.deltaPdf + 180; // Buffer for signature box centering
+                                // Base delta from name-center to sign-center
+                                bestDeltaPdf = closestHeader.deltaPdf;
                             }
-                            coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
+                            coords[matchedAttendee.name] = {
+                                x: tx,
+                                y: ty,
+                                w: tw,
+                                pageHeight: unscaledViewport.height,
+                                individualDeltaXPdf: bestDeltaPdf
+                            };
                         }
                     }
                 });
-                console.log("Auto-Detected Name Positions (Fixed):", coords);
+                console.log("Intelligent Header Deltas:", headerDeltas);
                 setNameCoordinates(coords);
 
                 setOffsetX(0);
@@ -323,10 +336,16 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const foundCoord = nameCoordinates[attendee.name];
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale, canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                        // [Final Precise Strike] Aiming for exactly X:431, Y:620
-                        // v0.0.5 hit 421. Nudging 10px right to hit 431 perfectly.
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 320) * scale;
-                        initLeft = canvasX + baseDeltaX - 56 + offsetX;
+                        const canvasW = foundCoord.w * scale;
+
+                        // [Intelligent Geometry Strike]
+                        // 1. Find the center of the name: canvasX + canvasW/2
+                        // 2. Add the dynamic delta (distance to sign-column center)
+                        // 3. Subtract half of the signature box width (140/2 = 70) to center it.
+                        const nameCenter = canvasX + canvasW / 2;
+                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 250) * scale;
+
+                        initLeft = nameCenter + signCenterDelta - (boxWidth / 2) + offsetX;
                         initTop = canvasY + 168 + offsetY;
                     }
 
