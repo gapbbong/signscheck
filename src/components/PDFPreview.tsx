@@ -119,12 +119,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5];
-                            let bestDeltaPdf = 320; // [Final Tuning] Based on 431/246 delta
+                            let bestDeltaPdf = 180; // Default fallback for single column width
                             if (headerDeltas.length > 0) {
                                 const closestHeader = headerDeltas.reduce((prev, curr) =>
                                     Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev
                                 );
-                                bestDeltaPdf = closestHeader.deltaPdf + 180; // Add column width buffer
+                                bestDeltaPdf = closestHeader.deltaPdf; // Use header distance exactly
                             }
                             coords[matchedAttendee.name] = { x: tx, y: ty, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
                         }
@@ -326,9 +326,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         // [Final Golden Tuning] 
                         // Target X: 431 -> canvasX + (320*1.2) - 15 = 431 (if canvasX=60)
                         // Target Y: 620 -> canvasY + 130 = 620 (if canvasY=490)
-                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 320) * scale;
-                        initLeft = canvasX + baseDeltaX - 56 + offsetX;
-                        initTop = canvasY + 168 + offsetY;
+                        const baseDeltaX = (foundCoord.individualDeltaXPdf ?? 180) * scale;
+                        initLeft = canvasX + baseDeltaX - 25 + offsetX;
+                        initTop = canvasY + 230 + offsetY;
                     }
 
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
