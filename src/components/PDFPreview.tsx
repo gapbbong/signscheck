@@ -390,7 +390,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     const foundCoord = nameCoordinates[attendee.name];
 
-                    if (foundCoord && scale) {
+                    // [Restore] Force '이갑종' to bottom right as requested
+                    if (attendee.name === '이갑종') {
+                        initLeft = 550;  // Right edge minus signature width
+                        initTop = 950;   // Bottom edge minus signature height
+                    } else if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
                         const canvasW = foundCoord.w * scale;
