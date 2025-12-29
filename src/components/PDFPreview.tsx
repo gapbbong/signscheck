@@ -64,6 +64,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     }, [onConfirm]);
 
     const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
+    const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number }[]>([]);
     const [debugHeaderDeltas, setDebugHeaderDeltas] = useState<any[]>([]);
 
     useEffect(() => {
@@ -105,12 +106,20 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
                 const nameHeaders: any[] = [], signHeaders: any[] = [];
+                const detectedHeaders: { str: string, x: number, y: number, w: number, h: number }[] = [];
 
                 mergedItems.forEach((item: any) => {
                     const str = item.str.replace(/\s+/g, '');
-                    if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) nameHeaders.push(item);
-                    if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) signHeaders.push(item);
+                    if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) {
+                        nameHeaders.push(item);
+                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20 });
+                    }
+                    if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) {
+                        signHeaders.push(item);
+                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20 });
+                    }
                 });
+                setHeaderCoords(detectedHeaders);
 
                 const headerDeltas: { nameX: number, deltaPdf: number, band: { yMin: number, yMax: number } }[] = [];
                 nameHeaders.forEach(nh => {
@@ -376,43 +385,57 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
             <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto', margin: '0 auto' }} />
 
-            {/* Debug Layers */}
-            {showDebug && Object.entries(nameCoordinates).map(([name, coord]) => {
+            {/* Header Labels (Blue) - Persistent as requested */}
+            {headerCoords.map((hc, i) => {
+                const x = hc.x * scale;
+                const y = (pageSize?.height || 842 - hc.y) * scale; // Fallback h
+                return (
+                    <div key={`header-${i}`} style={{ position: 'absolute', top: y, left: x, pointerEvents: 'none', zIndex: 40 }}>
+                        <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(59,130,246,0.9)', color: 'white', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                            {hc.str} [X:{Math.round(hc.x)} Y:{Math.round(hc.y)}]
+                        </div>
+                        <div style={{ width: hc.w * scale, height: 15 * scale, border: '1px dashed rgba(59,130,246,0.5)' }} />
+                    </div>
+                );
+            })}
+
+            {/* Attendee Name & Target Labels */}
+            {Object.entries(nameCoordinates).map(([name, coord]) => {
                 const x = coord.x * scale;
                 const y = (coord.pageHeight - coord.y) * scale;
                 const w = coord.w * scale;
-                // Just use 20 for h for visual
                 const h = 20 * scale;
 
-                // Predicted Sign Box
                 const BASE_W = 110;
                 const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 280) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
                 const signY = y + 10 + offsetY;
 
                 return (
-                    <div key={`debug-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
+                    <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
                         {/* Name Box (Red) */}
                         <div style={{
                             position: 'absolute', top: y, left: x, width: w, height: h,
-                            border: '1px solid rgba(255, 0, 0, 0.7)', backgroundColor: 'rgba(255, 0, 0, 0.1)'
+                            border: '1px solid rgba(255, 0, 0, 0.4)', backgroundColor: 'rgba(255, 0, 0, 0.05)'
                         }}>
-                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(255,0,0,0.8)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
-                                {name} [X:{Math.round(x)} Y:{Math.round(y)}]
+                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(239,68,68,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
+                                {name} [X:{Math.round(coord.x)} Y:{Math.round(coord.y)}]
                             </div>
                         </div>
                         {/* Sign Target (Green) */}
                         <div style={{
                             position: 'absolute', top: signY, left: signX, width: 110 * sigGlobalScale * scale, height: (110 / 3) * sigGlobalScale * scale,
-                            border: '1px solid rgba(0, 255, 0, 0.7)', backgroundColor: 'rgba(0, 255, 0, 0.1)'
+                            border: '1px solid rgba(34, 197, 94, 0.4)', backgroundColor: 'rgba(34, 197, 94, 0.05)'
                         }}>
-                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.8)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap' }}>
+                            <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
                                 Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)}]
                             </div>
                         </div>
-                        {/* Connecting Line */}
-                        <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
-                            <line x1={x + w / 2} y1={y + h / 2} x2={signX + (55 * sigGlobalScale * scale)} y2={signY + (18 * sigGlobalScale * scale)} stroke="rgba(0,0,255,0.4)" strokeWidth="1" strokeDasharray="4" />
-                        </svg>
+                        {/* Connecting Line (Only in Debug) */}
+                        {showDebug && (
+                            <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
+                                <line x1={x + w / 2} y1={y + h / 2} x2={signX + (55 * sigGlobalScale * scale)} y2={signY + (18 * sigGlobalScale * scale)} stroke="rgba(0,0,255,0.4)" strokeWidth="1" strokeDasharray="4" />
+                            </svg>
+                        )}
                     </div>
                 );
             })}
