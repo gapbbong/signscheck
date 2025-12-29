@@ -180,7 +180,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
             try {
                 const page = await pdfDoc.getPage(1);
-                const desiredScale = 1.2;
+                const desiredScale = 1.0;
                 const scaledViewport = page.getViewport({ scale: desiredScale, rotation: (page.rotate + rotation) % 360 });
                 setScale(desiredScale);
 
