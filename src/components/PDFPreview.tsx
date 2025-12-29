@@ -112,11 +112,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 mergedItems.forEach((item: any) => {
                     const str = item.str.replace(/\s+/g, '');
-                    if (['교사명', '성명', '이름', '성명', '성 명', '교 사 명'].includes(str)) {
+                    const isNameHeader = ['교사명', '성명', '이름', '성명', '성 명', '교사', '성함'].some(h => str.includes(h));
+                    const isSignHeader = ['서명', '서명본', '(인)', '인장', '서명란'].some(h => str.includes(h));
+
+                    if (isNameHeader && !isSignHeader) {
                         nameHeaders.push(item);
                         detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20, pageHeight: unscaledViewport.height });
-                    }
-                    if (['서명', '서명본', '(인)', '서 명', '서  명', '서 명 본'].includes(str)) {
+                    } else if (isSignHeader) {
                         signHeaders.push(item);
                         detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20, pageHeight: unscaledViewport.height });
                     }
@@ -126,15 +128,16 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const headerDeltas: { nameX: number, deltaPdf: number, band: { yMin: number, yMax: number } }[] = [];
                 nameHeaders.forEach(nh => {
                     const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3;
-                    // Find sign header on same line (allow +/- 15px vertical variance)
-                    const sh = signHeaders.find(sh => Math.abs(sh.transform[5] - ny) < 15 && sh.transform[4] > nx);
-                    if (sh) {
+                    // Find the CLOSEST sign header to the right on the same line
+                    const possibleSigns = signHeaders.filter(sh => Math.abs(sh.transform[5] - ny) < 15 && sh.transform[4] > nx);
+                    if (possibleSigns.length > 0) {
+                        const sh = possibleSigns.sort((a, b) => a.transform[4] - b.transform[4])[0];
                         const sx = sh.transform[4], sw = sh.width || sh.transform[0] * 2;
                         const centerDelta = (sx + sw / 2) - (nx + nw / 2);
                         headerDeltas.push({
                             nameX: nx,
                             deltaPdf: centerDelta,
-                            band: { yMin: ny - 400, yMax: ny + 50 } // Vertical context for this column
+                            band: { yMin: ny - 700, yMax: ny + 50 } // Increased vertical range for taller tables
                         });
                     }
                 });
@@ -151,7 +154,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5], tw = item.width || item.transform[0] * 2;
-                            let bestDeltaPdf = 280;
+                            let bestDeltaPdf = 120; // Reduced fallback from 280
 
                             if (headerDeltas.length > 0) {
                                 // Find delta from the header in the same "band" (column)
