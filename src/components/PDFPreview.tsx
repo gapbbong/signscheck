@@ -270,7 +270,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pos = positions[uniqueId] || initPos;
                 const pdfX = pos.x / scale;
                 const pdfY = pageHeight - (pos.y / scale);
-                const targetWidth = 140 / scale, targetHeight = 50 / scale;
+                const targetWidth = 140; // Standard PDF units
+                const targetHeight = 50; // Standard PDF units
 
                 page.drawImage(sigImage, {
                     x: pdfX,
@@ -352,7 +353,23 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const pos = positions[uniqueId] || { x: initLeft, y: initTop };
 
                     return (
-                        <div key={uniqueId} onMouseDown={(e) => handleMouseDown(e, uniqueId, initLeft, initTop)} style={{ position: 'absolute', top: `${pos.y}px`, left: `${pos.x}px`, width: `${boxWidth}px`, height: `${boxHeight}px`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'move', userSelect: 'none', zIndex: 50 }}>
+                        <div
+                            key={uniqueId}
+                            onMouseDown={(e) => handleMouseDown(e, uniqueId, initLeft, initTop)}
+                            style={{
+                                position: 'absolute',
+                                top: `${pos.y}px`,
+                                left: `${pos.x}px`,
+                                width: `${boxWidth * scale}px`,
+                                height: `${boxHeight * scale}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                cursor: 'move',
+                                userSelect: 'none',
+                                zIndex: 50
+                            }}
+                        >
                             <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}>
                                 <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))', pointerEvents: 'none' }} />
                             </div>

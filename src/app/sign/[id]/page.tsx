@@ -91,14 +91,10 @@ export default function SignPage() {
     useEffect(() => {
         if (!loading && requestData && canvasRef.current) {
             const canvas = canvasRef.current;
-            canvas.width = canvas.offsetWidth || window.innerWidth - 48;
-
-            // [Update] Double height for PC (> 768px), keep 200 for mobile
-            const isDesktop = window.innerWidth > 768;
-            const targetHeight = isDesktop ? 400 : 200;
-
-            canvas.height = targetHeight;
-            setCanvasHeight(targetHeight);
+            // Standard internal resolution for consistency
+            canvas.width = 600;
+            canvas.height = 200;
+            setCanvasHeight(200);
         }
     }, [loading, requestData]);
 
@@ -156,14 +152,15 @@ export default function SignPage() {
     };
 
     const getCoordinates = (e: any, canvas: HTMLCanvasElement) => {
-        if (e.touches && e.touches[0]) {
-            const rect = canvas.getBoundingClientRect();
-            return {
-                offsetX: e.touches[0].clientX - rect.left,
-                offsetY: e.touches[0].clientY - rect.top
-            };
-        }
-        return { offsetX: e.nativeEvent.offsetX, offsetY: e.nativeEvent.offsetY };
+        const rect = canvas.getBoundingClientRect();
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        // Map client coordinates to standardized 600x200 resolution
+        const x = (clientX - rect.left) * (canvas.width / rect.width);
+        const y = (clientY - rect.top) * (canvas.height / rect.height);
+
+        return { offsetX: x, offsetY: y };
     };
 
     const handleClear = () => {
