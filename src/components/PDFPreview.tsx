@@ -203,6 +203,94 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         }
                     }
                 });
+
+                // --- PHANTOM SEARCH: Fix for fragmented names (e.g. "이   갑   종") ---
+                // If a name is missing or found only at the footer (low Y), try to find it by character sequence.
+                attendees.forEach(att => {
+                    const cleanName = att.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                    if (cleanName.length < 2) return;
+
+                    const existing = coords[att.name];
+                    // Only search if missing or if the existing match is suspiciously low (e.g. footer < 300? No, high Y is top. Footer is usually low Y? Wait.
+                    // transform[5] (Y) is 0 at bottom in PDF.js?
+                    // "ty" in code is item.transform[5].
+                    // User says "453" (Footer) vs "475" (Table).
+                    // So Higher Y is Higher on Page?
+                    // PDF.js default: 0,0 is Bottom-Left.
+                    // So Y=475 is ABOVE Y=453.
+                    // So we want the HIGHER Y.
+                    // If we found Y=453, but missed Y=475, we need to search.
+                    // Let's ALWAYS search to find if there's a Higher Y occurrence we missed.
+
+                    // Check if we can find the sequence of characters
+                    const firstChar = cleanName[0];
+                    const otherChars = cleanName.slice(1).split('');
+
+                    // Find all potential start items
+                    const starts = sortedItems.filter((i: any) => i.str.includes(firstChar));
+
+                    starts.forEach((startItem: any) => {
+                        let currentChain = [startItem];
+                        let currentX = startItem.transform[4] + (startItem.width || 0);
+                        let currentY = startItem.transform[5];
+                        let validChain = true;
+
+                        // Try to find subsequent chars
+                        for (const char of otherChars) {
+                            const nextItem = sortedItems.find((i: any) => {
+                                const iy = i.transform[5];
+                                const ix = i.transform[4];
+                                // Strict Y alignment, X must be to the right but close
+                                return Math.abs(iy - currentY) < 5 &&
+                                    ix > currentX - 5 && // allow tiny overlap or gap
+                                    ix < currentX + 150 && // max char spacing
+                                    i.str.includes(char);
+                            });
+
+                            if (nextItem) {
+                                currentChain.push(nextItem);
+                                currentX = nextItem.transform[4] + (nextItem.width || 0);
+                            } else {
+                                validChain = false;
+                                break;
+                            }
+                        }
+
+                        if (validChain) {
+                            // Reconstruct Box
+                            const first = currentChain[0];
+                            const last = currentChain[currentChain.length - 1];
+                            const phX = first.transform[4];
+                            const phY = first.transform[5]; // Use first item's Y
+                            const phW = (last.transform[4] + (last.width || 0)) - phX;
+
+                            // Calculate Delta similar to logic above
+                            let phDeltaPdf = 120;
+                            // Reuse header optimization logic
+                            if (headerDeltas.length > 0) {
+                                const headers = headerDeltas.filter(h => Math.abs(h.nameX - phX) < 100 && phY > h.band.yMin && phY < h.band.yMax);
+                                if (headers.length > 0) {
+                                    phDeltaPdf = headers[0].deltaPdf;
+                                } else {
+                                    phDeltaPdf = headerDeltas[0].deltaPdf;
+                                }
+                            }
+
+                            // Update if higher
+                            const currentBest = coords[att.name];
+                            if (!currentBest || phY > currentBest.y) {
+                                coords[att.name] = {
+                                    x: phX,
+                                    y: phY,
+                                    w: phW,
+                                    pageHeight: unscaledViewport.height,
+                                    individualDeltaXPdf: phDeltaPdf
+                                };
+                                console.log(`[${att.name}] Phantom Search Found Higher Y: ${phY.toFixed(1)} (Was: ${currentBest?.y})`);
+                            }
+                        }
+                    });
+                });
                 console.log("📊 Intelligent Header Deltas:", headerDeltas);
                 console.log("📍 Name Coordinates:", coords);
                 setNameCoordinates(coords);
@@ -625,7 +713,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         );
                     })}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.87]:</strong><br />
+                    <strong>Raw Text (Y:300-800) [v0.3.88 Phantom]:</strong><br />
                     {
                         rawTextItems.map((item, idx) => (
                             <div key={idx} style={{ color: '#64748b' }}>
