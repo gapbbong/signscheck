@@ -465,7 +465,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     border: '1px solid rgba(34, 197, 94, 0.4)', backgroundColor: 'rgba(34, 197, 94, 0.05)'
                                 }}>
                                     <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                        Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)}]
+                                        Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)} Y:{Math.round(coord.y)}]
                                     </div>
                                 </div>
                                 {/* Connecting Line (Only in Debug) */}
