@@ -112,8 +112,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 mergedItems.forEach((item: any) => {
                     const str = item.str.replace(/\s+/g, '');
-                    const isNameHeader = ['교사명', '성명', '이름', '성명', '성 명', '교사', '성함'].some(h => str.includes(h));
-                    const isSignHeader = ['서명', '서명본', '(인)', '인장', '서명란'].some(h => str.includes(h));
+                    const isNameHeader = ['교사명', '성명', '이름', '성명', '성 명', '교사', '성함', '성 명'].some(h => str.includes(h));
+                    const isSignHeader = ['서명', '서명본', '(인)', '인장', '서명란', '서 명'].some(h => str.includes(h));
 
                     if (isNameHeader && !isSignHeader) {
                         nameHeaders.push(item);
@@ -135,7 +135,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         ny < 650 && // Skip top header noise
                         Math.abs(sh.transform[5] - ny) < 15 &&
                         sh.transform[4] > nx &&
-                        Math.abs(sh.transform[4] - nx) < 200 // Columns shouldn't be TOO wide
+                        Math.abs(sh.transform[4] - nx) < 150 // Columns shouldn't be TOO wide (tightened from 200)
                     );
 
                     if (possibleSigns.length > 0) {
@@ -446,8 +446,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const BASE_W = 110;
                         const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                        // User request: No Y-offset. Match name Y exactly.
-                        const signY = y + offsetY;
+                        // Centering: Baseline - 7px shift up in canvas to align centers
+                        const signY = y - (7 * scale) + offsetY;
 
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
@@ -502,8 +502,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasSigWidth = currentSigWidth * scale;
 
                                 initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                                // User request: No Y-offset. Match name Y exactly.
-                                initTop = canvasY + offsetY;
+                                // Centering: Baseline - 7px shift up in canvas to align centers
+                                initTop = canvasY - (7 * scale) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
@@ -534,7 +534,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                         {attendee.name}
                                         {showDebug && foundCoord && (
                                             <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>
-                                                [X:{Math.round(foundCoord.x + (foundCoord.individualDeltaXPdf || 120))} Y:{Math.round(foundCoord.y)}]
+                                                [X:{Math.round(foundCoord.x + (foundCoord.individualDeltaXPdf || 120))} Y:{Math.round(foundCoord.y + 7)}]
                                             </span>
                                         )}
                                     </div>
