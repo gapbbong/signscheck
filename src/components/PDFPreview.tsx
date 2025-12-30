@@ -82,14 +82,23 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     return by - ay;
                 });
 
+                const getImgWidth = (item: any) => {
+                    if (item.width && item.width > 0) return item.width;
+                    const fontSize = Math.abs(item.transform[0]);
+                    return fontSize * (item.str.trim().length || 1);
+                };
+
                 const mergedItems: any[] = [];
                 let currentItem: any = null;
                 sortedItems.forEach((item: any) => {
                     if (!currentItem) { currentItem = { ...item }; return; }
                     const prevY = currentItem.transform[5], currY = item.transform[5];
-                    const prevRight = currentItem.transform[4] + (currentItem.width || 0);
+                    const prevRight = currentItem.transform[4] + getImgWidth(currentItem);
                     if (Math.abs(prevY - currY) < 8 && (item.transform[4] - prevRight) < 120) {
+                        const oldX = currentItem.transform[4];
                         currentItem.str += (currentItem.str.endsWith(' ') ? '' : ' ') + item.str;
+                        const newRight = item.transform[4] + getImgWidth(item);
+                        currentItem.width = newRight - oldX;
                     } else {
                         mergedItems.push(currentItem);
                         currentItem = { ...item };
@@ -108,10 +117,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     if (isNameHeader && !isSignHeader) {
                         nameHeaders.push(item);
-                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20, pageHeight: unscaledViewport.height });
+                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: getImgWidth(item), h: 20, pageHeight: unscaledViewport.height });
                     } else if (isSignHeader) {
                         signHeaders.push(item);
-                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || item.transform[0] * 3, h: 20, pageHeight: unscaledViewport.height });
+                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: getImgWidth(item), h: 20, pageHeight: unscaledViewport.height });
                     }
                 });
                 setHeaderCoords(detectedHeaders);
@@ -121,12 +130,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const nx = nh.transform[4], ny = nh.transform[5];
                     const sHeader = signHeaders
                         .filter(sh => Math.abs(sh.transform[5] - ny) < 20)
-                        .filter(sh => sh.transform[4] > nx && sh.transform[4] < nx + 150)
+                        .filter(sh => sh.transform[4] > nx && sh.transform[4] < nx + 300)
                         .sort((a, b) => a.transform[4] - b.transform[4])[0];
 
                     if (sHeader) {
-                        const nw = nh.width || nh.transform[0] * 3;
-                        const sx = sHeader.transform[4], sw = sHeader.width || sHeader.transform[0] * 3;
+                        const nw = getImgWidth(nh);
+                        const sx = sHeader.transform[4], sw = getImgWidth(sHeader);
 
                         // Center-to-Center delta
                         const nameCenter = nx + (nw / 2);
@@ -151,8 +160,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         });
 
                         if (matchedAttendee) {
-                            const tx = item.transform[4], ty = item.transform[5], tw = item.width || item.transform[0] * 2;
-                            let bestDeltaPdf = 120;
+                            const tx = item.transform[4], ty = item.transform[5], tw = getImgWidth(item);
+                            let bestDeltaPdf = 135; // Default 135 is more likely for table layouts
                             if (headerDeltas.length > 0) {
                                 const possibleHeaders = headerDeltas.filter(h =>
                                     Math.abs(h.nameX - tx) < 100 && ty > h.band.yMin && ty < h.band.yMax
@@ -192,8 +201,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             const relevantItems = rowItems.filter(i => nameChars.some(c => i.str.includes(c)));
                             if (relevantItems.length > 0) {
                                 const minX = Math.min(...relevantItems.map(i => i.transform[4]));
-                                const maxX = Math.max(...relevantItems.map(i => i.transform[4] + (i.width || 0)));
-                                let phDeltaPdf = 120;
+                                const maxX = Math.max(...relevantItems.map(i => i.transform[4] + getImgWidth(i)));
+                                let phDeltaPdf = 135;
                                 if (headerDeltas.length > 0) {
                                     const headers = headerDeltas.filter(h => Math.abs(h.nameX - minX) < 100 && avgY > h.band.yMin && avgY < h.band.yMax);
                                     phDeltaPdf = headers.length > 0 ? headers[0].deltaPdf : headerDeltas[0].deltaPdf;
