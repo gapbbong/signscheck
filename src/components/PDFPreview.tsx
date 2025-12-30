@@ -244,14 +244,20 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const w = maxX - minX;
 
                                 // Header Delta Logic
+                                // Find closest header column by X-coordinate
                                 let phDeltaPdf = 120;
                                 if (headerDeltas.length > 0) {
-                                    const headers = headerDeltas.filter(h => Math.abs(h.nameX - minX) < 100 && avgY > h.band.yMin && avgY < h.band.yMax);
-                                    if (headers.length > 0) {
-                                        phDeltaPdf = headers[0].deltaPdf;
-                                    } else {
-                                        phDeltaPdf = headerDeltas[0].deltaPdf;
+                                    let bestHeader = headerDeltas[0];
+                                    let minDist = Math.abs(headerDeltas[0].nameX - minX);
+
+                                    for (let i = 1; i < headerDeltas.length; i++) {
+                                        const dist = Math.abs(headerDeltas[i].nameX - minX);
+                                        if (dist < minDist) {
+                                            minDist = dist;
+                                            bestHeader = headerDeltas[i];
+                                        }
                                     }
+                                    phDeltaPdf = bestHeader.deltaPdf;
                                 }
 
                                 // Update if Higher Y
@@ -692,7 +698,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         );
                     })}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.91 Row]:</strong><br />
+                    <strong>Raw Text (Y:300-800) [v0.3.92 Row]:</strong><br />
                     {
                         rawTextItems.map((item, idx) => (
                             <div key={idx} style={{ color: '#64748b' }}>
