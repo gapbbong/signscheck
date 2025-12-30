@@ -150,9 +150,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 mergedItems.forEach((item: any) => {
                     const str = item.str.trim();
                     if (str.length >= 2) {
-                        const cleanStr = str.replace(/[0-9\s\(\)\[\]\.\*\-]/g, '');
+                        const cleanStr = str.replace(/[^a-zA-Z0-9가-힣]/g, '');
                         const matchedAttendee = attendees.find(a => {
-                            const cleanName = a.name.replace(/\s/g, '');
+                            const cleanName = a.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
                             return cleanStr === cleanName || cleanStr.includes(cleanName);
                         });
 
@@ -489,9 +489,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             let initLeft = 50 + col * (boxWidth + gap) + offsetX;
                             let initTop = 100 + row * (50 + gap) + offsetY;
 
-                            // Normalize names for matching (remove all spaces and trim)
+                            // Normalize names for matching (remove all non-alphanumeric/hangul)
                             const foundCoord = Object.entries(nameCoordinates).find(([name]) =>
-                                name.replace(/\s+/g, '').trim() === attendee.name.replace(/\s+/g, '').trim()
+                                name.replace(/[^a-zA-Z0-9가-힣]/g, '') === attendee.name.replace(/[^a-zA-Z0-9가-힣]/g, '')
                             )?.[1];
 
                             if (foundCoord && scale) {
