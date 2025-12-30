@@ -532,12 +532,18 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
                                         {attendee.name}
                                         {showDebug && (
-                                            <span style={{ color: '#ef4444', marginLeft: '6px' }}>
+                                            <span style={{
+                                                color: 'white',
+                                                backgroundColor: '#ef4444',
+                                                marginLeft: '6px',
+                                                padding: '1px 4px',
+                                                borderRadius: '3px',
+                                                fontSize: '10px'
+                                            }}>
                                                 {foundCoord ? (
-                                                    `[X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} 
-                                                      Y:${Math.round((foundCoord.pageHeight || 842) - (pos.y - offsetY + (7 * scale)) / scale)}]`
+                                                    `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round((foundCoord.pageHeight || 842) - (pos.y - offsetY + (7 * scale)) / scale)}`
                                                 ) : (
-                                                    '[Coord N/A]'
+                                                    'Coord N/A'
                                                 )}
                                             </span>
                                         )}
