@@ -125,11 +125,18 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 });
                 setHeaderCoords(detectedHeaders);
 
-                const headerDeltas: { nameX: number, deltaPdf: number, band: { yMin: number, yMax: number } }[] = [];
+                const headerDeltas: any[] = [];
                 nameHeaders.forEach(nh => {
                     const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3;
-                    // Find the CLOSEST sign header to the right on the same line
-                    const possibleSigns = signHeaders.filter(sh => Math.abs(sh.transform[5] - ny) < 15 && sh.transform[4] > nx);
+
+                    // Filter: Only consider headers in the main table area (roughly middle of the page)
+                    // and avoid headers at the very top (usually > 650 PDF Y) if they aren't part of a table
+                    const possibleSigns = signHeaders.filter(sh =>
+                        Math.abs(sh.transform[5] - ny) < 15 &&
+                        sh.transform[4] > nx &&
+                        Math.abs(sh.transform[4] - nx) < 300 // Columns shouldn't be TOO wide
+                    );
+
                     if (possibleSigns.length > 0) {
                         const sh = possibleSigns.sort((a, b) => a.transform[4] - b.transform[4])[0];
                         const sx = sh.transform[4], sw = sh.width || sh.transform[0] * 2;
@@ -137,7 +144,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         headerDeltas.push({
                             nameX: nx,
                             deltaPdf: centerDelta,
-                            band: { yMin: ny - 700, yMax: ny + 50 } // Increased vertical range for taller tables
+                            band: { yMin: ny - 700, yMax: ny + 50 }
                         });
                     }
                 });
@@ -438,7 +445,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const BASE_W = 110;
                         const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                        const signY = y + offsetY; // Exactly on the baseline Y as requested
+                        // Move up by 11px scale to match name row center
+                        const signY = y - (11 * scale) + offsetY;
 
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
@@ -493,7 +501,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasSigWidth = currentSigWidth * scale;
 
                                 initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                                initTop = canvasY + offsetY; // On baseline
+                                // Move up by 11px scale to match name row center
+                                initTop = canvasY - (11 * scale) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
