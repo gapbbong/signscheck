@@ -204,89 +204,68 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     }
                 });
 
-                // --- PHANTOM SEARCH: Fix for fragmented names (e.g. "이   갑   종") ---
-                // If a name is missing or found only at the footer (low Y), try to find it by character sequence.
+                // --- ROW GROUPING SEARCH: Fix for fragmented names (Row-based) ---
+                // 1. Group items by vertical band (approx 12px tolerance) to handle "Line" detection
+                const rows: Record<number, any[]> = {};
+                sortedItems.forEach((item: any) => {
+                    const y = item.transform[5];
+                    const yKey = Math.round(y / 12) * 12; // 12px bucket for row grouping
+                    if (!rows[yKey]) rows[yKey] = [];
+                    rows[yKey].push(item);
+                });
+
                 attendees.forEach(att => {
                     const cleanName = att.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
                     if (cleanName.length < 2) return;
 
-                    const existing = coords[att.name];
-                    // Only search if missing or if the existing match is suspiciously low (e.g. footer < 300? No, high Y is top. Footer is usually low Y? Wait.
-                    // transform[5] (Y) is 0 at bottom in PDF.js?
-                    // "ty" in code is item.transform[5].
-                    // User says "453" (Footer) vs "475" (Table).
-                    // So Higher Y is Higher on Page?
-                    // PDF.js default: 0,0 is Bottom-Left.
-                    // So Y=475 is ABOVE Y=453.
-                    // So we want the HIGHER Y.
-                    // If we found Y=453, but missed Y=475, we need to search.
-                    // Let's ALWAYS search to find if there's a Higher Y occurrence we missed.
+                    // Check each "Row" (Y-bucket)
+                    Object.entries(rows).forEach(([yKeyStr, rowItems]) => {
+                        // Sort L->R
+                        rowItems.sort((a, b) => a.transform[4] - b.transform[4]);
 
-                    // Check if we can find the sequence of characters
-                    const firstChar = cleanName[0];
-                    const otherChars = cleanName.slice(1).split('');
+                        // Build clean string for the entire row
+                        const rowStrRaw = rowItems.map(i => i.str).join('');
+                        const rowStrClean = rowStrRaw.replace(/[^a-zA-Z0-9가-힣]/g, '');
 
-                    // Find all potential start items
-                    const starts = sortedItems.filter((i: any) => i.str.includes(firstChar));
+                        if (rowStrClean.includes(cleanName)) {
+                            // This row contains the name!
+                            // Calculate Row Average Y
+                            const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
 
-                    starts.forEach((startItem: any) => {
-                        let currentChain = [startItem];
-                        let currentX = startItem.transform[4] + (startItem.width || 0);
-                        let currentY = startItem.transform[5];
-                        let validChain = true;
+                            // Estimate X by bounding box of matching characters
+                            // Identify items that *likely* contribute to the name
+                            const nameChars = cleanName.split('');
+                            const relevantItems = rowItems.filter(i => nameChars.some(c => i.str.includes(c)));
 
-                        // Try to find subsequent chars
-                        for (const char of otherChars) {
-                            const nextItem = sortedItems.find((i: any) => {
-                                const iy = i.transform[5];
-                                const ix = i.transform[4];
-                                // Strict Y alignment, X must be to the right but close
-                                return Math.abs(iy - currentY) < 5 &&
-                                    ix > currentX - 5 && // allow tiny overlap or gap
-                                    ix < currentX + 150 && // max char spacing
-                                    i.str.includes(char);
-                            }) as any;
+                            if (relevantItems.length > 0) {
+                                // Calculate bounding box of these "name-like" items in this row
+                                const minX = Math.min(...relevantItems.map(i => i.transform[4]));
+                                const maxX = Math.max(...relevantItems.map(i => i.transform[4] + (i.width || 0)));
+                                const w = maxX - minX;
 
-                            if (nextItem) {
-                                currentChain.push(nextItem);
-                                currentX = nextItem.transform[4] + (nextItem.width || 0);
-                            } else {
-                                validChain = false;
-                                break;
-                            }
-                        }
-
-                        if (validChain) {
-                            // Reconstruct Box
-                            const first = currentChain[0];
-                            const last = currentChain[currentChain.length - 1];
-                            const phX = first.transform[4];
-                            const phY = first.transform[5]; // Use first item's Y
-                            const phW = (last.transform[4] + (last.width || 0)) - phX;
-
-                            // Calculate Delta similar to logic above
-                            let phDeltaPdf = 120;
-                            // Reuse header optimization logic
-                            if (headerDeltas.length > 0) {
-                                const headers = headerDeltas.filter(h => Math.abs(h.nameX - phX) < 100 && phY > h.band.yMin && phY < h.band.yMax);
-                                if (headers.length > 0) {
-                                    phDeltaPdf = headers[0].deltaPdf;
-                                } else {
-                                    phDeltaPdf = headerDeltas[0].deltaPdf;
+                                // Header Delta Logic
+                                let phDeltaPdf = 120;
+                                if (headerDeltas.length > 0) {
+                                    const headers = headerDeltas.filter(h => Math.abs(h.nameX - minX) < 100 && avgY > h.band.yMin && avgY < h.band.yMax);
+                                    if (headers.length > 0) {
+                                        phDeltaPdf = headers[0].deltaPdf;
+                                    } else {
+                                        phDeltaPdf = headerDeltas[0].deltaPdf;
+                                    }
                                 }
-                            }
 
-                            // Update if higher
-                            const currentBest = coords[att.name];
-                            if (!currentBest || phY > currentBest.y) {
-                                coords[att.name] = {
-                                    x: phX,
-                                    y: phY,
-                                    w: phW,
-                                    pageHeight: unscaledViewport.height,
-                                    individualDeltaXPdf: phDeltaPdf
-                                };
-                                console.log(`[${att.name}] Phantom Search Found Higher Y: ${phY.toFixed(1)} (Was: ${currentBest?.y})`);
+                                // Update if Higher Y
+                                const currentBest = coords[att.name];
+                                if (!currentBest || avgY > currentBest.y) {
+                                    coords[att.name] = {
+                                        x: minX,
+                                        y: avgY,
+                                        w: w,
+                                        pageHeight: unscaledViewport.height,
+                                        individualDeltaXPdf: phDeltaPdf
+                                    };
+                                    console.log(`[${att.name}] Row Grouping Found Higher Y: ${avgY.toFixed(1)} (Was: ${currentBest?.y})`);
+                                }
                             }
                         }
                     });
@@ -713,7 +692,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         );
                     })}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.90 Phantom]:</strong><br />
+                    <strong>Raw Text (Y:300-800) [v0.3.91 Row]:</strong><br />
                     {
                         rawTextItems.map((item, idx) => (
                             <div key={idx} style={{ color: '#64748b' }}>
