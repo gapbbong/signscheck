@@ -66,6 +66,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
     const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number }[]>([]);
     const [debugHeaderDeltas, setDebugHeaderDeltas] = useState<any[]>([]);
+    const [rawTextItems, setRawTextItems] = useState<any[]>([]);
     const [displayScale, setDisplayScale] = useState(1);
     const containerRef = useRef<HTMLDivElement>(null);
 
@@ -97,7 +98,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     if (!currentItem) { currentItem = { ...item }; return; }
                     const prevY = currentItem.transform[5], currY = item.transform[5];
                     const prevRight = currentItem.transform[4] + (currentItem.width || 0);
-                    if (Math.abs(prevY - currY) < 8 && (item.transform[4] - prevRight) < 40) {
+                    if (Math.abs(prevY - currY) < 8 && (item.transform[4] - prevRight) < 120) {
                         currentItem.str += (currentItem.str.endsWith(' ') ? '' : ' ') + item.str;
                     } else {
                         mergedItems.push(currentItem);
@@ -105,6 +106,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     }
                 });
                 if (currentItem) mergedItems.push(currentItem);
+
+                // Store raw items for debug
+                setRawTextItems(mergedItems.filter((i: any) => {
+                    const y = i.transform[5];
+                    return y > 300 && y < 800; // Filter relevant band
+                }));
 
                 const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
                 const nameHeaders: any[] = [], signHeaders: any[] = [];
@@ -615,8 +622,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             <div key={a.id}>
                                 User "{a.name}" (Norm: "{normName}") &rarr; Matched: {entry ? `"${entry[0]}" (Y=${Math.round(entry[1].y)})` : "NONE"}
                             </div>
-                        );
-                    })}
+                    <hr style={{ margin: '5px 0' }} />
+                    <strong>Raw Text (Y:300-800) [v0.3.86]:</strong><br />
+                    {
+                            rawTextItems.map((item, idx) => (
+                                <div key={idx} style={{ color: '#64748b' }}>
+                                    Y={Math.round(item.transform[5])} | "{item.str}"
+                                </div>
+                            ))
+                        }
                 </div>
             )}
 
