@@ -129,18 +129,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 nameHeaders.forEach(nh => {
                     const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3;
 
-                    // Filter: Only consider headers in the main table area (roughly middle of the page)
-                    // and avoid headers at the very top (usually > 650 PDF Y) if they aren't part of a table
-                    const possibleSigns = signHeaders.filter(sh =>
-                        ny < 650 && // Skip top header noise
-                        Math.abs(sh.transform[5] - ny) < 15 &&
-                        sh.transform[4] > nx &&
-                        Math.abs(sh.transform[4] - nx) < 150 // Columns shouldn't be TOO wide (tightened from 200)
-                    );
+                    // Find the most suitable sign header for the current name header
+                    const sHeader = signHeaders
+                        .filter(sh => Math.abs(sh.transform[5] - ny) < 20) // Roughly on the same line (Y-axis)
+                        .filter(sh => sh.transform[4] > nx && sh.transform[4] < nx + 150) // To the right of name header, within 150px
+                        .sort((a, b) => a.transform[4] - b.transform[4])[0]; // Pick the closest one to the right
 
-                    if (possibleSigns.length > 0) {
-                        const sh = possibleSigns.sort((a, b) => a.transform[4] - b.transform[4])[0];
-                        const sx = sh.transform[4], sw = sh.width || sh.transform[0] * 2;
+                    if (sHeader) {
+                        const sx = sHeader.transform[4], sw = sHeader.width || sHeader.transform[0] * 2;
                         const centerDelta = (sx + sw / 2) - (nx + nw / 2);
                         headerDeltas.push({
                             nameX: nx,
@@ -328,7 +324,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const canvasW = foundCoord.w * scale;
 
                         const nameCenter = canvasX + (canvasW / 2);
-                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 280) * scale;
+                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 120) * scale;
 
                         const currentSigWidth = 110 * sigGlobalScale;
                         const canvasSigWidth = currentSigWidth * scale;
@@ -488,9 +484,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             let initLeft = 50 + col * (boxWidth + gap) + offsetX;
                             let initTop = 100 + row * (50 + gap) + offsetY;
 
-                            // Normalize names for matching (remove spaces)
+                            // Normalize names for matching (remove all spaces and trim)
                             const foundCoord = Object.entries(nameCoordinates).find(([name]) =>
-                                name.replace(/\s+/g, '') === attendee.name.replace(/\s+/g, '')
+                                name.replace(/\s+/g, '').trim() === attendee.name.replace(/\s+/g, '').trim()
                             )?.[1];
 
                             if (foundCoord && scale) {
@@ -535,10 +531,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     </div>
                                     <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
                                         {attendee.name}
-                                        {showDebug && foundCoord && (
+                                        {showDebug && (
                                             <span style={{ color: '#ef4444', marginLeft: '6px' }}>
-                                                [X:{Math.round((pos.x - offsetX + (110 * sigGlobalScale * scale / 2)) / scale)}
-                                                Y:{Math.round(foundCoord.pageHeight - (pos.y - offsetY + (7 * scale)) / scale)}]
+                                                {foundCoord ? (
+                                                    `[X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} 
+                                                      Y:${Math.round((foundCoord.pageHeight || 842) - (pos.y - offsetY + (7 * scale)) / scale)}]`
+                                                ) : (
+                                                    '[Coord N/A]'
+                                                )}
                                             </span>
                                         )}
                                     </div>
