@@ -370,8 +370,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const nameCenter = canvasX + (canvasW / 2);
                         const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
 
-                        const canvasSigWidth = 110 * sigGlobalScale * scale;
-                        const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
+                        const canvasSigWidth = 80 * sigGlobalScale * scale;
+                        const sigBoxHeight = (80 / 3) * sigGlobalScale * scale;
 
                         return {
                             x: signTargetCenter - (canvasSigWidth / 2) + offsetX,
@@ -388,13 +388,23 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pdfX = pos.x / scale;
                 const pdfY = pageHeight - (pos.y / scale);
 
-                const targetWidth = 110 * sigGlobalScale;
-                const aspect = sigImage.height / sigImage.width;
-                const targetHeight = targetWidth * aspect;
+                const boxWidth = 80 * sigGlobalScale;
+                const boxHeight = (80 / 3) * sigGlobalScale;
+
+                const imgW = sigImage.width;
+                const imgH = sigImage.height;
+                const scaleFactor = Math.min(boxWidth / imgW, boxHeight / imgH);
+
+                const targetWidth = imgW * scaleFactor;
+                const targetHeight = imgH * scaleFactor;
+
+                // Center the image within the virtual box (boxWidth x boxHeight)
+                const centeredX = pdfX + (boxWidth - targetWidth) / 2;
+                const centeredY = (pdfY - boxHeight) + (boxHeight - targetHeight) / 2;
 
                 page.drawImage(sigImage, {
-                    x: pdfX,
-                    y: pdfY - targetHeight,
+                    x: centeredX,
+                    y: centeredY,
                     width: targetWidth,
                     height: targetHeight,
                 });
@@ -471,8 +481,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasX = foundCoord.x * scale;
                                 const canvasW = foundCoord.w * scale;
                                 const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                                const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
-                                const canvasSigWidth = 110 * sigGlobalScale * scale;
+                                const sigBoxHeight = (80 / 3) * sigGlobalScale * scale;
+                                const canvasSigWidth = 80 * sigGlobalScale * scale;
 
                                 const nameCenter = canvasX + (canvasW / 2);
                                 const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
@@ -491,8 +501,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                         position: 'absolute',
                                         top: `${pos.y}px`,
                                         left: `${pos.x}px`,
-                                        width: `${110 * sigGlobalScale * scale}px`,
-                                        height: `${(110 / 3) * sigGlobalScale * scale}px`,
+                                        width: `${80 * sigGlobalScale * scale}px`,
+                                        height: `${(80 / 3) * sigGlobalScale * scale}px`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
@@ -514,7 +524,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
             {showDebug && (
                 <div style={{ padding: '10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                    <strong>Name Coordinates Dump (v0.5.2 Row):</strong><br />
+                    <strong>Name Coordinates Dump (v0.5.3 Row):</strong><br />
                     {Object.entries(nameCoordinates).map(([key, val]) => (
                         <div key={key}>
                             "{key}" : X={Math.round(val.x)}, Y={Math.round(val.y)}, Delta={Math.round(val.individualDeltaXPdf || 0)}
