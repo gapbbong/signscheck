@@ -534,7 +534,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                         {attendee.name}
                                         {showDebug && foundCoord && (
                                             <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>
-                                                [X:{Math.round(foundCoord.x + (foundCoord.individualDeltaXPdf || 120))} Y:{Math.round(foundCoord.y + 7)}]
+                                                [X:{Math.round((pos.x - offsetX + (110 * sigGlobalScale * scale / 2) - (foundCoord.w * scale / 2)) / scale)}
+                                                Y:{Math.round(foundCoord.pageHeight - (pos.y - offsetY + (7 * scale)) / scale)}]
                                             </span>
                                         )}
                                     </div>
