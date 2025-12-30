@@ -143,11 +143,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         .sort((a, b) => a.transform[4] - b.transform[4])[0]; // Pick the closest one to the right
 
                     if (sHeader) {
-                        const sx = sHeader.transform[4], sw = sHeader.width || sHeader.transform[0] * 2;
-                        const centerDelta = (sx + sw / 2) - (nx + nw / 2);
+                        const sx = sHeader.transform[4];
+                        // Distance from Name Left Edge to Sign Left Edge
+                        const leftDelta = sx - nx;
                         headerDeltas.push({
                             nameX: nx,
-                            deltaPdf: centerDelta,
+                            deltaPdf: leftDelta,
                             band: { yMin: ny - 700, yMax: ny + 50 }
                         });
                     }
@@ -428,14 +429,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const nameCenter = canvasX + (canvasW / 2);
                         const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 120) * scale;
 
-                        const currentSigWidth = 110 * sigGlobalScale;
-                        const canvasSigWidth = currentSigWidth * scale;
+                        const canvasSigWidth = 110 * sigGlobalScale * scale;
+                        const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
 
-                        // X: move to sign column center
-                        // Y: +10px to move slightly down from baseline to center in row
+                        // X: align with sign column left edge (match UI)
+                        // Y: Target Y is the CENTER of the signature box (match UI)
                         return {
-                            x: nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX,
-                            y: canvasY + 10 + offsetY
+                            x: canvasX + (foundCoord.individualDeltaXPdf ?? 120) * scale + offsetX,
+                            y: canvasY - (sigBoxHeight / 2) + offsetY
                         };
                     }
                     const index = attendees.findIndex(a => a.name === attendee.name);
@@ -552,7 +553,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const h = 20 * scale;
 
                         const BASE_W = 110;
-                        const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
+                        const signX = x + ((coord.individualDeltaXPdf || 120) * scale) + offsetX;
 
                         // UNIFIED TARGET LOGIC (Target Canvas Top)
                         // This logic MUST match the logic used for 'initTop' below
@@ -626,11 +627,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const currentSigWidth = 110 * sigGlobalScale;
                                 const canvasSigWidth = currentSigWidth * scale;
 
-                                initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
+                                // X: align with sign column left edge
+                                initLeft = canvasX + (foundCoord.individualDeltaXPdf ?? 120) * scale + offsetX;
 
                                 // UNIFIED TARGET LOGIC (Must match 'signY')
-                                // canvasY would be ((foundCoord.pageHeight - foundCoord.y) * scale)
-                                initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) + offsetY;
+                                // Target Y is the CENTER of the signature box, so we need to subtract half the height
+                                const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
+                                initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) - (sigBoxHeight / 2) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
