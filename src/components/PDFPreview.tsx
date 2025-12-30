@@ -418,7 +418,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 if (includeMetadata) {
                     const ipPart = attendee.ip || "unknown IP";
                     const devicePart = attendee.deviceInfo ? attendee.deviceInfo.split(')')[0] + ')' : "unknown Device";
-                    const datePart = new Date().toLocaleString('ko-KR', { hour12: false });
+
+                    // Force Latin-only date format (YYYY-MM-DD HH:mm:ss) to avoid Helvetica encoding errors
+                    const now = new Date();
+                    const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+
                     const metadataStr = `[CERT] IP: ${ipPart} | Device: ${devicePart} | At: ${datePart}`;
 
                     page.drawText(metadataStr, {

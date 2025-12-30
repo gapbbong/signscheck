@@ -75,12 +75,13 @@ export default function SignPage() {
                                 data.mainPdfUrl = meetingData.pdfUrl || meetingData.fileUrl;
                                 if (!data.attachmentUrl) data.attachmentUrl = meetingData.attachmentUrl;
 
-                                // Load PDF for preview canvas
+                                // Load PDF for preview canvas (Use Proxy to avoid CORS hang)
                                 if (data.mainPdfUrl) {
+                                    const proxyPdfUrl = `/api/proxy-pdf?url=${encodeURIComponent(data.mainPdfUrl)}`;
                                     const pdfjsLib = await import('pdfjs-dist');
-                                    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+                                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
-                                    const loadingTask = pdfjsLib.getDocument(data.mainPdfUrl);
+                                    const loadingTask = pdfjsLib.getDocument(proxyPdfUrl);
                                     const docObj = await loadingTask.promise;
                                     setPdfDoc(docObj);
 
@@ -318,6 +319,19 @@ export default function SignPage() {
                     {requestData.name}님에게 서명 요청 왔습니다.
                 </h1>
             </header>
+            <style>{`
+                @keyframes spin {
+                    to { transform: rotate(360deg); }
+                }
+                .spinner {
+                    width: 24px;
+                    height: 24px;
+                    border: 3px solid #e2e8f0;
+                    border-top-color: #3b82f6;
+                    border-radius: 50%;
+                    animation: spin 0.8s linear infinite;
+                }
+            `}</style>
 
             <main style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
                 {/* 1. Main PDF Preview */}
@@ -348,7 +362,10 @@ export default function SignPage() {
                         )}
 
                         {!pdfDoc && (
-                            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>문서를 불러오고 있습니다...</div>
+                            <div style={{ height: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#94a3b8' }}>
+                                <div className="spinner"></div>
+                                <div>문서를 불러오고 있습니다...</div>
+                            </div>
                         )}
                     </div>
                 </div>
