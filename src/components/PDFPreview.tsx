@@ -178,7 +178,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     bestDeltaPdf = closestHeader.deltaPdf;
                                 }
                             }
-                            if (!coords[matchedAttendee.name]) {
+                            // Robust Logic: Always prefer the HIGHEST Y (Top of page)
+                            // This handles duplicate names (e.g. Table Row vs Footer) regardless of sort order.
+                            const existing = coords[matchedAttendee.name];
+                            if (!existing || ty > existing.y) {
                                 coords[matchedAttendee.name] = {
                                     x: tx,
                                     y: ty,
@@ -186,9 +189,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     pageHeight: unscaledViewport.height,
                                     individualDeltaXPdf: bestDeltaPdf
                                 };
-                                console.log(`[${matchedAttendee.name}] Delta: ${bestDeltaPdf.toFixed(1)}px, Name X: ${tx.toFixed(1)}px`);
+                                console.log(`[${matchedAttendee.name}] Updated to Higher Y: ${ty.toFixed(1)}px (Was: ${existing?.y})`);
                             } else {
-                                console.log(`[${matchedAttendee.name}] Ignored duplicate (kept top-most): Y=${ty}, Existing Y=${coords[matchedAttendee.name].y}`);
+                                console.log(`[${matchedAttendee.name}] Ignored Lower Y: ${ty.toFixed(1)}px (Kept: ${existing.y})`);
                             }
                         }
                     }
