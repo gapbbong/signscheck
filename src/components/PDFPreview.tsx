@@ -598,7 +598,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             {/* DEBUG PANEL for Data Inspection */}
             {showDebug && (
                 <div style={{ padding: '10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                    <strong>Name Coordinates Dump (v0.3.80):</strong><br />
+                    <strong>Name Coordinates Dump (v0.3.85):</strong><br />
                     {Object.entries(nameCoordinates).map(([key, val]) => (
                         <div key={key}>
                             "{key}" : Y={Math.round(val.y)} (Raw) | Norm: "{key.replace(/[^a-zA-Z0-9가-힣]/g, '')}"
