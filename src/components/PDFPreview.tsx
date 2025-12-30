@@ -129,22 +129,19 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 nameHeaders.forEach(nh => {
                     const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3;
 
-                    // Find ALL possible sign headers on roughly the same line
-                    const possibleSigns = signHeaders
-                        .filter(sh => Math.abs(sh.transform[5] - ny) < 20)
-                        .filter(sh => sh.transform[4] > nx); // Must be to the right
+                    // Find the most suitable sign header for the current name header
+                    const sHeader = signHeaders
+                        .filter(sh => Math.abs(sh.transform[5] - ny) < 20) // Roughly on the same line (Y-axis)
+                        .filter(sh => sh.transform[4] > nx && sh.transform[4] < nx + 150) // To the right of name header, within 150px
+                        .sort((a, b) => a.transform[4] - b.transform[4])[0]; // Pick the closest one to the right
 
-                    // Pick the single closest sign header to the right
-                    const sHeader = possibleSigns.sort((a, b) => a.transform[4] - b.transform[4])[0];
-
-                    // Only accept if it's within a reasonable table column distance (e.g. 350px)
-                    // and ensure it's not the next column's name header area
-                    if (sHeader && (sHeader.transform[4] - nx) < 350) {
+                    if (sHeader) {
                         const sx = sHeader.transform[4], sw = sHeader.width || sHeader.transform[0] * 2;
                         const centerDelta = (sx + sw / 2) - (nx + nw / 2);
                         headerDeltas.push({
                             nameX: nx,
-                            deltaX: centerDelta
+                            deltaPdf: centerDelta,
+                            band: { yMin: ny - 700, yMax: ny + 50 }
                         });
                     }
                 });
@@ -165,11 +162,21 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                             if (headerDeltas.length > 0) {
                                 // Find the CLOSEST header in the same vertical band/column
-                                const match = headerDeltas.length > 0
-                                    ? headerDeltas.sort((a, b) => Math.abs(a.nameX - tx) - Math.abs(b.nameX - tx))[0]
-                                    : null;
+                                const possibleHeaders = headerDeltas.filter(h =>
+                                    Math.abs(h.nameX - tx) < 100 && ty > h.band.yMin && ty < h.band.yMax
+                                );
 
-                                bestDeltaPdf = match ? match.deltaX : (tx < 300 ? 95 : 100);
+                                if (possibleHeaders.length > 0) {
+                                    const sameBandHeader = possibleHeaders.sort((a, b) => Math.abs(a.nameX - tx) - Math.abs(b.nameX - tx))[0];
+                                    bestDeltaPdf = sameBandHeader.deltaPdf;
+                                } else {
+                                    // Fallback to closest header by X only
+                                    const closestHeader = headerDeltas.reduce((prev, curr) =>
+                                        Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev,
+                                        headerDeltas[0]
+                                    );
+                                    bestDeltaPdf = closestHeader.deltaPdf;
+                                }
                             }
                             coords[matchedAttendee.name] = {
                                 x: tx,
@@ -434,7 +441,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const h = 20 * scale;
 
                         const BASE_W = 110;
-                        const signX = (x + w / 2) + ((coord.individualDeltaXPdf ?? 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
+                        const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
                         // Centering: Baseline - 7px shift up in canvas to align centers
                         const signY = y - (7 * scale) + offsetY;
 
@@ -522,29 +529,19 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'transparent'}>
                                         <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
                                     </div>
-                                    <div style={{
-                                        position: 'absolute', top: -24, left: 0,
-                                        fontSize: '11px', fontWeight: 'bold',
-                                        backgroundColor: '#fef08a', color: '#1e293b',
-                                        padding: '2px 8px', borderRadius: '4px',
-                                        border: '1px solid #eab308', pointerEvents: 'none',
-                                        whiteSpace: 'nowrap', boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
-                                        zIndex: 1000, display: 'flex', alignItems: 'center'
-                                    }}>
-                                        <span>{attendee.name}</span>
+                                    <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 9999 }}>
+                                        {attendee.name}
                                         {showDebug && (
                                             <span style={{
-                                                backgroundColor: '#ef4444',
                                                 color: 'white',
-                                                marginLeft: '8px',
-                                                padding: '1px 5px',
+                                                backgroundColor: '#ef4444',
+                                                marginLeft: '6px',
+                                                padding: '1px 4px',
                                                 borderRadius: '3px',
-                                                fontSize: '10px',
-                                                display: 'inline-block',
-                                                boxShadow: '0 1px 2px rgba(0,0,0,0.3)'
+                                                fontSize: '10px'
                                             }}>
                                                 {foundCoord ? (
-                                                    `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round(((foundCoord as any).pageHeight || 842) - (pos.y - offsetY + (7 * scale)) / scale)}`
+                                                    `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round((foundCoord.pageHeight || 842) - (pos.y - offsetY + (7 * scale)) / scale)}`
                                                 ) : (
                                                     'Coord N/A'
                                                 )}
