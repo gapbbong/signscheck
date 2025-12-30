@@ -622,15 +622,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             <div key={a.id}>
                                 User "{a.name}" (Norm: "{normName}") &rarr; Matched: {entry ? `"${entry[0]}" (Y=${Math.round(entry[1].y)})` : "NONE"}
                             </div>
+                        );
+                    })}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.86]:</strong><br />
+                    <strong>Raw Text (Y:300-800) [v0.3.87]:</strong><br />
                     {
-                            rawTextItems.map((item, idx) => (
-                                <div key={idx} style={{ color: '#64748b' }}>
-                                    Y={Math.round(item.transform[5])} | "{item.str}"
-                                </div>
-                            ))
-                        }
+                        rawTextItems.map((item, idx) => (
+                            <div key={idx} style={{ color: '#64748b' }}>
+                                Y={Math.round(item.transform[5])} | "{item.str}"
+                            </div>
+                        ))
+                    }
                 </div>
             )}
 
