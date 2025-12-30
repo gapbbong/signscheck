@@ -556,7 +556,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         // UNIFIED TARGET LOGIC (Target Canvas Top)
                         // This logic MUST match the logic used for 'initTop' below
-                        const signY = ((coord.pageHeight - coord.y) * scale) - (7 * scale) + offsetY;
+                        const signY = ((coord.pageHeight - coord.y) * scale) + offsetY;
 
                         // Calculate visual center of the signature box in PDF coordinates
                         const sigBoxHeightPDF = (110 / 3) * sigGlobalScale;
@@ -630,7 +630,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                                 // UNIFIED TARGET LOGIC (Must match 'signY')
                                 // canvasY would be ((foundCoord.pageHeight - foundCoord.y) * scale)
-                                initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) - (7 * scale) + offsetY;
+                                initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
