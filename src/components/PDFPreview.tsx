@@ -445,8 +445,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const BASE_W = 110;
                         const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                        // Sync: Name PDF Y is 464, user wants Target PDF Y at 466 -> Use -2px offset in Canvas (Upward)
-                        const signY = y - (2 * scale) + offsetY;
+                        // User request: No Y-offset. Match name Y exactly.
+                        const signY = y + offsetY;
 
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
@@ -501,8 +501,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasSigWidth = currentSigWidth * scale;
 
                                 initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                                // Sync: Name PDF Y is 464, user wants Target PDF Y at 466 -> Use -2px offset in Canvas (Upward)
-                                initTop = canvasY - (2 * scale) + offsetY;
+                                // User request: No Y-offset. Match name Y exactly.
+                                initTop = canvasY + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
@@ -533,7 +533,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                         {attendee.name}
                                         {showDebug && foundCoord && (
                                             <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>
-                                                [X:{Math.round(foundCoord.x + (foundCoord.individualDeltaXPdf || 120))} Y:{Math.round(foundCoord.y + 2)}]
+                                                [X:{Math.round(foundCoord.x + (foundCoord.individualDeltaXPdf || 120))} Y:{Math.round(foundCoord.y)}]
                                             </span>
                                         )}
                                     </div>
