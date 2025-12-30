@@ -178,14 +178,18 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     bestDeltaPdf = closestHeader.deltaPdf;
                                 }
                             }
-                            coords[matchedAttendee.name] = {
-                                x: tx,
-                                y: ty,
-                                w: tw,
-                                pageHeight: unscaledViewport.height,
-                                individualDeltaXPdf: bestDeltaPdf
-                            };
-                            console.log(`[${matchedAttendee.name}] Delta: ${bestDeltaPdf.toFixed(1)}px, Name X: ${tx.toFixed(1)}px`);
+                            if (!coords[matchedAttendee.name]) {
+                                coords[matchedAttendee.name] = {
+                                    x: tx,
+                                    y: ty,
+                                    w: tw,
+                                    pageHeight: unscaledViewport.height,
+                                    individualDeltaXPdf: bestDeltaPdf
+                                };
+                                console.log(`[${matchedAttendee.name}] Delta: ${bestDeltaPdf.toFixed(1)}px, Name X: ${tx.toFixed(1)}px`);
+                            } else {
+                                console.log(`[${matchedAttendee.name}] Ignored duplicate (kept top-most): Y=${ty}, Existing Y=${coords[matchedAttendee.name].y}`);
+                            }
                         }
                     }
                 });
