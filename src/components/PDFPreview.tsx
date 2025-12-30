@@ -28,11 +28,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const renderTaskRef = useRef<any>(null);
 
     const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
-    const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number }[]>([]);
+    const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number, type: 'name' | 'sign' }[]>([]);
     const [displayScale, setDisplayScale] = useState(1);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Keyboard Shortcuts: Space to Confirm, Arrows to Adjust
+    const [showDebug, setShowDebug] = useState(false);
+    const [rawTextItems, setRawTextItems] = useState<any[]>([]);
+
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement).tagName;
@@ -55,6 +57,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     onConfirm();
                 }
             }
+
+            if (e.key.toLowerCase() === 'd' && !isInput) {
+                setShowDebug(prev => !prev);
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
@@ -76,7 +82,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const textContent = await page.getTextContent();
                 const unscaledViewport = page.getViewport({ scale: 1.0 });
 
-                const sortedItems = [...textContent.items].sort((a: any, b: any) => {
+                const rawItems = textContent.items as any[];
+                setRawTextItems(rawItems.filter(i => i.transform[5] > 300 && i.transform[5] < 800));
+
+                const sortedItems = [...rawItems].sort((a: any, b: any) => {
                     const ay = a.transform[5], by = b.transform[5];
                     if (Math.abs(ay - by) < 8) return a.transform[4] - b.transform[4];
                     return by - ay;
@@ -86,7 +95,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     if (item.width && item.width > 0) return item.width;
                     const fontSize = Math.abs(item.transform[0]);
                     const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(item.str);
-                    // Korean characters are wider (square). Use 1.1x factor for safer centering.
                     return fontSize * (item.str.trim().length || 1) * (hasKorean ? 1.1 : 0.6);
                 };
 
@@ -96,9 +104,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     if (!currentItem) { currentItem = { ...item }; return; }
                     const prevY = currentItem.transform[5], currY = item.transform[5];
                     const prevRight = currentItem.transform[4] + getImgWidth(currentItem);
-                    if (Math.abs(prevY - currY) < 8 && (item.transform[4] - prevRight) < 120) {
+                    if (Math.abs(prevY - currY) < 5 && (item.transform[4] - prevRight) < 15) {
                         const oldX = currentItem.transform[4];
-                        currentItem.str += (currentItem.str.endsWith(' ') ? '' : ' ') + item.str;
+                        currentItem.str += item.str;
                         const newRight = item.transform[4] + getImgWidth(item);
                         currentItem.width = newRight - oldX;
                     } else {
@@ -110,75 +118,59 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
                 const nameHeaders: any[] = [], signHeaders: any[] = [];
-                const detectedHeaders: { str: string, x: number, y: number, w: number, h: number, pageHeight: number }[] = [];
+                const allScannerHeaders: { str: string, x: number, y: number, w: number, h: number, pageHeight: number, type: 'name' | 'sign' }[] = [];
+
+                const nameKeywords = ['교사명', '성명', '이름', '교사', '성함', '성 명'];
+                const signKeywords = ['서명', '서명본', '(인)', '인장', '서명란', '서 명'];
 
                 mergedItems.forEach((item: any) => {
-                    const str = item.str.replace(/\s+/g, '');
-                    const isNameHeader = ['교사명', '성명', '이름', '교사', '성함', '성 명'].some(h => str.includes(h));
-                    const isSignHeader = ['서명', '서명본', '(인)', '인장', '서명란', '서 명'].some(h => str.includes(h));
+                    const str = item.str;
+                    const itemW = getImgWidth(item);
 
-                    if (isNameHeader && !isSignHeader) {
-                        nameHeaders.push(item);
-                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: getImgWidth(item), h: 20, pageHeight: unscaledViewport.height });
-                    } else if (isSignHeader) {
-                        signHeaders.push(item);
-                        detectedHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: getImgWidth(item), h: 20, pageHeight: unscaledViewport.height });
-                    }
+                    // Scanner: find all sub-positions
+                    nameKeywords.forEach(kw => {
+                        let pos = str.indexOf(kw);
+                        while (pos !== -1) {
+                            const charFactor = pos / (str.length || 1);
+                            const nx = item.transform[4] + (itemW * charFactor);
+                            const nw = (itemW / (str.length || 1)) * kw.length;
+                            const hObj = { str: kw, x: nx, y: item.transform[5], w: nw, h: 20, pageHeight: unscaledViewport.height, type: 'name' as const };
+                            allScannerHeaders.push(hObj);
+                            nameHeaders.push({ ...hObj, transform: [0, 0, 0, 0, nx, item.transform[5]] });
+                            pos = str.indexOf(kw, pos + 1);
+                        }
+                    });
+
+                    signKeywords.forEach(kw => {
+                        let pos = str.indexOf(kw);
+                        while (pos !== -1) {
+                            const charFactor = pos / (str.length || 1);
+                            const sx = item.transform[4] + (itemW * charFactor);
+                            const sw = (itemW / (str.length || 1)) * kw.length;
+                            const hObj = { str: kw, x: sx, y: item.transform[5], w: sw, h: 20, pageHeight: unscaledViewport.height, type: 'sign' as const };
+                            allScannerHeaders.push(hObj);
+                            signHeaders.push({ ...hObj, transform: [0, 0, 0, 0, sx, item.transform[5]], width: sw });
+                            pos = str.indexOf(kw, pos + 1);
+                        }
+                    });
                 });
-                setHeaderCoords(detectedHeaders);
+                setHeaderCoords(allScannerHeaders);
 
                 const headerDeltas: any[] = [];
                 nameHeaders.forEach(nh => {
-                    const nx = nh.transform[4], ny = nh.transform[5];
+                    const nx = nh.x, ny = nh.y;
                     const sHeader = signHeaders
-                        .filter(sh => Math.abs(sh.transform[5] - ny) < 20)
-                        .filter(sh => sh.transform[4] > nx && sh.transform[4] < nx + 300)
-                        .sort((a, b) => a.transform[4] - b.transform[4])[0];
+                        .filter(sh => Math.abs(sh.y - ny) < 20)
+                        .filter(sh => sh.x > nx && sh.x < nx + 400)
+                        .sort((a, b) => a.x - b.x)[0];
 
                     if (sHeader) {
-                        const nw = getImgWidth(nh);
-                        const sx = sHeader.transform[4], sw = getImgWidth(sHeader);
-
-                        // Center-to-Center delta
-                        const nameCenter = nx + (nw / 2);
-                        const signCenter = sx + (sw / 2);
-                        const centerDelta = signCenter - nameCenter;
-
+                        const signCenter = sHeader.x + (sHeader.w / 2);
                         headerDeltas.push({
                             nameX: nx,
-                            deltaPdf: centerDelta,
+                            signCenterX: signCenter,
                             band: { yMin: ny - 700, yMax: ny + 50 }
                         });
-                    }
-                });
-
-                mergedItems.forEach((item: any) => {
-                    const str = item.str.trim();
-                    if (str.length >= 2) {
-                        const cleanStr = str.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                        const matchedAttendee = attendees.find(a => {
-                            const cleanName = a.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                            return cleanStr === cleanName || cleanStr.includes(cleanName);
-                        });
-
-                        if (matchedAttendee) {
-                            const tx = item.transform[4], ty = item.transform[5], tw = getImgWidth(item);
-                            let bestDeltaPdf = 140; // Unified fallback to 140 for v0.4.2
-                            if (headerDeltas.length > 0) {
-                                const possibleHeaders = headerDeltas.filter(h =>
-                                    Math.abs(h.nameX - tx) < 100 && ty > h.band.yMin && ty < h.band.yMax
-                                );
-                                if (possibleHeaders.length > 0) {
-                                    bestDeltaPdf = possibleHeaders.sort((a, b) => Math.abs(a.nameX - tx) - Math.abs(b.nameX - tx))[0].deltaPdf;
-                                } else {
-                                    bestDeltaPdf = headerDeltas.reduce((prev, curr) =>
-                                        Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev,
-                                        headerDeltas[0]
-                                    ).deltaPdf;
-                                }
-                            }
-                            coords[matchedAttendee.name] = { x: tx, y: ty, w: tw, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
-                        }
                     }
                 });
 
@@ -195,35 +187,51 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     const cleanName = att.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
                     if (cleanName.length < 2) return;
                     Object.entries(rows).forEach(([yKeyStr, rowItems]) => {
-                        const rowStrRaw = rowItems.sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join('');
-                        const rowStrClean = rowStrRaw.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                        rowItems.sort((a, b) => a.transform[4] - b.transform[4]);
+                        const rowStrFull = rowItems.map(i => i.str).join('');
+                        const rowStrClean = rowStrFull.replace(/[^a-zA-Z0-9가-힣]/g, '');
+
                         if (rowStrClean.includes(cleanName)) {
                             const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
-                            const nameChars = cleanName.split('');
-                            const relevantItems = rowItems.filter(i => nameChars.some(c => i.str.includes(c)));
-                            if (relevantItems.length > 0) {
-                                const minX = Math.min(...relevantItems.map(i => i.transform[4]));
-                                const maxX = Math.max(...relevantItems.map(i => i.transform[4] + (i.width || 0)));
+                            let bestRange: any[] = [];
+                            let minRangeWidth = Infinity;
+
+                            for (let start = 0; start < rowItems.length; start++) {
+                                let currentStr = "";
+                                for (let end = start; end < rowItems.length; end++) {
+                                    currentStr += rowItems[end].str.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                                    if (currentStr.includes(cleanName)) {
+                                        const range = rowItems.slice(start, end + 1);
+                                        const rMinX = Math.min(...range.map(r => r.transform[4]));
+                                        const rMaxX = Math.max(...range.map(r => r.transform[4] + getImgWidth(r)));
+                                        const rWidth = rMaxX - rMinX;
+                                        if (rWidth < minRangeWidth) {
+                                            minRangeWidth = rWidth;
+                                            bestRange = range;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+
+                            if (bestRange.length > 0) {
+                                const minX = Math.min(...bestRange.map(i => i.transform[4]));
+                                const maxX = Math.max(...bestRange.map(i => i.transform[4] + getImgWidth(i)));
                                 const w = maxX - minX;
 
-                                // Header Delta Logic
-                                // Find closest header column by X-coordinate
-                                let phDeltaPdf = 120;
+                                let phDeltaPdf = 140;
                                 if (headerDeltas.length > 0) {
-                                    let bestHeader = headerDeltas[0];
-                                    let minDist = Math.abs(headerDeltas[0].nameX - minX);
-
-                                    for (let i = 1; i < headerDeltas.length; i++) {
-                                        const dist = Math.abs(headerDeltas[i].nameX - minX);
-                                        if (dist < minDist) {
-                                            minDist = dist;
-                                            bestHeader = headerDeltas[i];
-                                        }
-                                    }
-                                    phDeltaPdf = bestHeader.deltaPdf;
+                                    // Robust Column Matching: Find header closest to name's X
+                                    let bestHeader = headerDeltas.reduce((prev, curr) =>
+                                        Math.abs(curr.nameX - minX) < Math.abs(prev.nameX - minX) ? curr : prev,
+                                        headerDeltas[0]
+                                    );
+                                    // phDeltaPdf is how much to add to the name's center to get signature center
+                                    phDeltaPdf = bestHeader.signCenterX - (minX + w / 2);
                                 }
+
                                 if (!coords[att.name] || avgY > coords[att.name].y) {
-                                    coords[att.name] = { x: minX, y: avgY, w: maxX - minX, pageHeight: unscaledViewport.height, individualDeltaXPdf: phDeltaPdf };
+                                    coords[att.name] = { x: minX, y: avgY, w: w, pageHeight: unscaledViewport.height, individualDeltaXPdf: phDeltaPdf };
                                 }
                             }
                         }
@@ -365,7 +373,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const canvasSigWidth = 110 * sigGlobalScale * scale;
                         const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
 
-                        // Horizontal Center alignment: align signature center with signTargetCenter
                         return {
                             x: signTargetCenter - (canvasSigWidth / 2) + offsetX,
                             y: canvasY - (sigBoxHeight / 2) + offsetY
@@ -454,28 +461,24 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 }}>
                     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}>
                         {signedAttendees.map((attendee, index) => {
-                            const uniqueId = attendee.id || index.toString();
-                            const boxWidth = 110, gap = 10;
-                            const cols = 4, col = index % cols, row = Math.floor(index / cols);
-                            let initLeft = 50 + col * (boxWidth + gap) + offsetX;
-                            let initTop = 100 + row * (50 + gap) + offsetY;
+                            const uniqueId = attendee.id || attendee.phone || `temp-${attendee.name}`;
+                            const foundCoord = nameCoordinates[attendee.name];
 
-                            const foundCoord = Object.entries(nameCoordinates).find(([name]) =>
-                                name.replace(/[^a-zA-Z0-9가-힣]/g, '') === attendee.name.replace(/[^a-zA-Z0-9가-힣]/g, '')
-                            )?.[1];
+                            let initLeft = 50 + (index % 4) * 150 + offsetX;
+                            let initTop = 100 + Math.floor(index / 4) * 60 + offsetY;
 
                             if (foundCoord && scale) {
                                 const canvasX = foundCoord.x * scale;
                                 const canvasW = foundCoord.w * scale;
+                                const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
                                 const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
                                 const canvasSigWidth = 110 * sigGlobalScale * scale;
 
                                 const nameCenter = canvasX + (canvasW / 2);
                                 const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
 
-                                // UI Overlay: Horizontal Center Alignment
                                 initLeft = signTargetCenter - (canvasSigWidth / 2) + offsetX;
-                                initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) - (sigBoxHeight / 2) + offsetY;
+                                initTop = canvasY - (sigBoxHeight / 2) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
@@ -502,9 +505,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'transparent'}>
                                         <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
                                     </div>
-                                    <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 99999, minWidth: 'max-content' }}>
-                                        {attendee.name}
-                                    </div>
                                 </div>
                             );
                         })}
@@ -512,40 +512,23 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 </div>
             </div>
 
-            {/* DEBUG PANEL for Data Inspection */}
             {showDebug && (
                 <div style={{ padding: '10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                    <strong>Name Coordinates Dump (v0.3.85):</strong><br />
+                    <strong>Name Coordinates Dump (v0.5.2 Row):</strong><br />
                     {Object.entries(nameCoordinates).map(([key, val]) => (
                         <div key={key}>
-                            "{key}" : Y={Math.round(val.y)} (Raw) | Norm: "{key.replace(/[^a-zA-Z0-9가-힣]/g, '')}"
+                            "{key}" : X={Math.round(val.x)}, Y={Math.round(val.y)}, Delta={Math.round(val.individualDeltaXPdf || 0)}
                         </div>
                     ))}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Signature Bindings:</strong><br />
-                    {signedAttendees.map(a => {
-                        const normName = a.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                        const entry = Object.entries(nameCoordinates).find(([name]) =>
-                            name.replace(/[^a-zA-Z0-9가-힣]/g, '') === normName
-                        );
-                        return (
-                            <div key={a.id}>
-                                User "{a.name}" (Norm: "{normName}") &rarr; Matched: {entry ? `"${entry[0]}" (Y=${Math.round(entry[1].y)})` : "NONE"}
-                            </div>
-                        );
-                    })}
-                    <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.92 Row]:</strong><br />
-                    {
-                        rawTextItems.map((item, idx) => (
-                            <div key={idx} style={{ color: '#64748b' }}>
-                                Y={Math.round(item.transform[5])} | "{item.str}"
-                            </div>
-                        ))
-                    }
+                    <strong>Raw Text (Y:300-800):</strong><br />
+                    {rawTextItems.map((item, idx) => (
+                        <div key={idx} style={{ color: '#64748b' }}>
+                            Y={Math.round(item.transform[5])} X={Math.round(item.transform[4])} | "{item.str}"
+                        </div>
+                    ))}
                 </div>
             )}
-
 
             <style jsx>{`
                 @keyframes popIn {
