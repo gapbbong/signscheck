@@ -37,7 +37,7 @@ export default function Home() {
   // State
   const [attendees, setAttendees] = useState<(Attendee & { id: string; selected: boolean; status: string })[]>([]);
   const [config, setConfig] = useState<AppConfig | null>(null);
-  const [statusMap, setStatusMap] = useState<Record<string, { status: string; signatureUrl?: string }>>({});
+  const [statusMap, setStatusMap] = useState<Record<string, { status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string }>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
@@ -87,7 +87,10 @@ export default function Home() {
         if (key && !map[key]) {
           map[key] = {
             status: data.status,
-            signatureUrl: data.signatureUrl
+            signatureUrl: data.signatureUrl,
+            ip: data.ip,
+            deviceInfo: data.deviceInfo,
+            userAgent: data.userAgent
           };
         }
       });
@@ -107,7 +110,10 @@ export default function Home() {
     return {
       ...a,
       status: liveData?.status || a.status,
-      signatureUrl: liveData?.signatureUrl
+      signatureUrl: liveData?.signatureUrl,
+      ip: liveData?.ip,
+      deviceInfo: liveData?.deviceInfo,
+      userAgent: liveData?.userAgent
     };
   });
 
@@ -618,7 +624,7 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
-          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v0.5.3</span>
+          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v0.6.0</span>
         </div>
         <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {user && (

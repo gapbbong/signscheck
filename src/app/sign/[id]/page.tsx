@@ -17,12 +17,32 @@ export default function SignPage() {
     const [requestData, setRequestData] = useState<any>(null);
     const [submitted, setSubmitted] = useState(false);
     const [isChecked, setIsChecked] = useState(false);
-    const [hasSigned, setHasSigned] = useState(false); // [New] Validation state
-    const [canvasHeight, setCanvasHeight] = useState(200); // [New] Dynamic height state
-    const [txtContent, setTxtContent] = useState<string | null>(null); // [New] For .txt attachments
+    const [hasSigned, setHasSigned] = useState(false);
+    const [canvasHeight, setCanvasHeight] = useState(200);
+    const [txtContent, setTxtContent] = useState<string | null>(null);
+
+    // Metadata State
+    const [ip, setIp] = useState("unknown");
+    const [deviceInfo, setDeviceInfo] = useState("");
+
+    // PDF Preview State (Signer Side)
+    const [pdfDoc, setPdfDoc] = useState<any>(null);
+    const [pageHeight, setPageHeight] = useState(0);
+    const [namePos, setNamePos] = useState<{ x: number, y: number, w: number, delta: number } | null>(null);
+    const [renderScale, setRenderScale] = useState(1);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const previewCanvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
+
+    // Metadata Fetch (IP/Device)
+    useEffect(() => {
+        fetch('https://api.ipify.org?format=json')
+            .then(res => res.json())
+            .then(data => setIp(data.ip))
+            .catch(() => setIp("unknown"));
+        setDeviceInfo(`${navigator.userAgent}`);
+    }, []);
 
     // Subscribe to remote config
     useEffect(() => {
@@ -45,7 +65,6 @@ export default function SignPage() {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
 
-                    // [New] Fetch related Meeting data for hostName/pdfUrl/attachmentUrl
                     if (data.meetingId) {
                         try {
                             const meetingRef = doc(db, "meetings", data.meetingId);
@@ -55,6 +74,47 @@ export default function SignPage() {
                                 data.hostName = meetingData.hostName || "담당자";
                                 data.mainPdfUrl = meetingData.pdfUrl || meetingData.fileUrl;
                                 if (!data.attachmentUrl) data.attachmentUrl = meetingData.attachmentUrl;
+
+                                // Load PDF for preview canvas
+                                if (data.mainPdfUrl) {
+                                    const pdfjsLib = await import('pdfjs-dist');
+                                    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+                                    const loadingTask = pdfjsLib.getDocument(data.mainPdfUrl);
+                                    const docObj = await loadingTask.promise;
+                                    setPdfDoc(docObj);
+
+                                    // Analysis (Mini Row Grouping)
+                                    const page = await docObj.getPage(1);
+                                    const textContent = await page.getTextContent();
+                                    const viewport = page.getViewport({ scale: 1.0 });
+                                    setPageHeight(viewport.height);
+
+                                    const items = textContent.items as any[];
+                                    const rows: Record<number, any[]> = {};
+                                    items.forEach(item => {
+                                        const yKey = Math.round(item.transform[5] / 12) * 12;
+                                        if (!rows[yKey]) rows[yKey] = [];
+                                        rows[yKey].push(item);
+                                    });
+
+                                    const cleanMyName = data.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                                    let foundPos: any = null;
+
+                                    Object.entries(rows).forEach(([yKey, rowItems]) => {
+                                        const rowStr = rowItems.map(i => i.str).join('');
+                                        const rowClean = rowStr.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                                        if (rowClean.includes(cleanMyName)) {
+                                            const minX = Math.min(...rowItems.map(i => i.transform[4]));
+                                            const maxX = Math.max(...rowItems.map(i => i.transform[4] + (i.width || 0)));
+                                            const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
+
+                                            // Simplistic delta logic for attendee (assume 140 if not found)
+                                            foundPos = { x: minX, y: avgY, w: maxX - minX, delta: 140 };
+                                        }
+                                    });
+                                    setNamePos(foundPos);
+                                }
                             }
                         } catch (e) {
                             console.error("Meeting fetch error:", e);
@@ -99,6 +159,29 @@ export default function SignPage() {
             setCanvasHeight(200);
         }
     }, [loading, requestData]);
+
+    // [New] Render Preview PDF onto Canvas
+    useEffect(() => {
+        if (!pdfDoc || !previewCanvasRef.current) return;
+        const render = async () => {
+            const page = await pdfDoc.getPage(1);
+            const canvas = previewCanvasRef.current!;
+            const context = canvas.getContext('2d');
+            if (!context) return;
+
+            const containerWidth = canvas.parentElement?.clientWidth || 300;
+            const viewport = page.getViewport({ scale: 1 });
+            const scale = containerWidth / viewport.width;
+            setRenderScale(scale);
+            const scaledViewport = page.getViewport({ scale });
+
+            canvas.width = scaledViewport.width;
+            canvas.height = scaledViewport.height;
+
+            await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+        };
+        render();
+    }, [pdfDoc, submitted]); // Re-render on submission to show overlay
 
     // [New] Auto-close listener (Enter/Space)
     useEffect(() => {
@@ -189,7 +272,10 @@ export default function SignPage() {
             await updateDoc(doc(db, "requests", id), {
                 status: 'signed',
                 signedAt: serverTimestamp(),
-                signatureUrl: signatureDataUrl
+                signatureUrl: signatureDataUrl,
+                ip: ip,
+                deviceInfo: deviceInfo,
+                userAgent: navigator.userAgent
             });
             setSubmitted(true);
         } catch (error) {
@@ -239,15 +325,30 @@ export default function SignPage() {
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>
                         서명할 문서 확인 (Preview) <span style={{ color: '#ef4444', marginLeft: '8px' }}>※ 서명란은 페이지 맨 아래에 있습니다</span>
                     </label>
-                    <div style={{ width: '100%', height: 'auto', minHeight: '400px', aspectRatio: '1 / 1.2', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                        {requestData.mainPdfUrl ? (
-                            <iframe
-                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
-                                style={{ width: '100%', height: '100%', border: 'none' }}
-                                title="Main PDF Preview"
-                            />
-                        ) : (
-                            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>문서를 불러올 수 없습니다. 원본을 다운로드하여 확인해 주세요.</div>
+                    <div style={{ width: '100%', height: 'auto', minHeight: '300px', backgroundColor: '#fff', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', position: 'relative' }}>
+                        <canvas ref={previewCanvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
+
+                        {/* Real-time Signature Overlay (After submission or during check) */}
+                        {(submitted || hasSigned) && namePos && (
+                            <div style={{
+                                position: 'absolute',
+                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (40 * renderScale)}px`,
+                                top: `${(pageHeight - namePos.y) * renderScale - (13 * renderScale)}px`,
+                                width: `${80 * renderScale}px`,
+                                height: `${27 * renderScale}px`,
+                                pointerEvents: 'none',
+                                zIndex: 10
+                            }}>
+                                <img
+                                    src={submitted ? requestData.signatureUrl : (localStorage.getItem('lastSignature') || '')}
+                                    style={{ width: '100%', height: '100%', mixBlendMode: 'multiply', opacity: 0.9 }}
+                                    alt="Sign Preview"
+                                />
+                            </div>
+                        )}
+
+                        {!pdfDoc && (
+                            <div style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>문서를 불러오고 있습니다...</div>
                         )}
                     </div>
                 </div>

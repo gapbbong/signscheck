@@ -8,7 +8,7 @@ import { useNotification } from '@/lib/NotificationContext';
 
 interface Props {
     file: File;
-    attendees: (Attendee & { id?: string; status: string; signatureUrl?: string })[];
+    attendees: (Attendee & { id?: string; status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string })[];
     onConfirm?: () => void;
     meetingId?: string | null;
 }
@@ -347,10 +347,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
         setIsDownloading(true);
         try {
+            const includeMetadata = window.confirm("서명 부가정보(장치, IP, 일시)를 서명 아래에 함께 출력하시겠습니까?");
+
             const arrayBuffer = await file.arrayBuffer();
             const pdfDoc = await PDFDocument.load(arrayBuffer);
             const page = pdfDoc.getPages()[0];
             const { height: pageHeight } = page.getSize();
+
+            const pdfjsLib = await import('pdfjs-dist');
+            const font = await pdfDoc.embedFont('Helvetica'); // Metadata font
 
             for (const attendee of signedAttendees) {
                 if (!attendee.signatureUrl) continue;
@@ -408,6 +413,21 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     width: targetWidth,
                     height: targetHeight,
                 });
+
+                // Optional Metadata Drawing
+                if (includeMetadata) {
+                    const ipPart = attendee.ip || "unknown IP";
+                    const devicePart = attendee.deviceInfo ? attendee.deviceInfo.split(')')[0] + ')' : "unknown Device";
+                    const datePart = new Date().toLocaleString('ko-KR', { hour12: false });
+                    const metadataStr = `[CERT] IP: ${ipPart} | Device: ${devicePart} | At: ${datePart}`;
+
+                    page.drawText(metadataStr, {
+                        x: centeredX,
+                        y: centeredY - 8,
+                        size: 5,
+                        font: font,
+                    });
+                }
             }
 
             const pdfBytes = await pdfDoc.save();
@@ -524,7 +544,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
             {showDebug && (
                 <div style={{ padding: '10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                    <strong>Name Coordinates Dump (v0.5.3 Row):</strong><br />
+                    <strong>Name Coordinates Dump (v0.6.0 Row):</strong><br />
                     {Object.entries(nameCoordinates).map(([key, val]) => (
                         <div key={key}>
                             "{key}" : X={Math.round(val.x)}, Y={Math.round(val.y)}, Delta={Math.round(val.individualDeltaXPdf || 0)}
