@@ -445,6 +445,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         // Centering: Baseline - 7px shift up in canvas to align centers
                         const signY = y - (7 * scale) + offsetY;
 
+                        // Calculate visual center of the signature box in PDF coordinates
+                        const sigBoxHeightPDF = (110 / 3) * sigGlobalScale;
+                        const visualTopPDF = coord.pageHeight - ((signY - offsetY) / scale); // Top edge in PDF
+                        const centerYPDF = visualTopPDF - (sigBoxHeightPDF / 2); // Center Y in PDF
+
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
                                 {/* Name Box (Red) */}
@@ -462,7 +467,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     border: '1px solid rgba(34, 197, 94, 0.4)', backgroundColor: 'rgba(34, 197, 94, 0.05)'
                                 }}>
                                     <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                        Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)} Y:{Math.round(coord.y)}]
+                                        Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)} Y:{Math.round(centerYPDF)}]
                                     </div>
                                 </div>
                                 {/* Connecting Line (Only in Debug) */}
@@ -540,7 +545,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                             fontSize: '10px'
                                         }}>
                                             {foundCoord ? (
-                                                `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round((foundCoord.pageHeight || 842) - (pos.y - offsetY + (7 * scale)) / scale)}`
+                                                `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round((foundCoord.pageHeight || 842) - (pos.y - offsetY) / scale - ((110 / 3) * (sigGlobalScale || 1) / 2))}`
                                             ) : (
                                                 'Coord N/A'
                                             )}
