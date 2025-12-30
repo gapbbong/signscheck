@@ -125,9 +125,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         .sort((a, b) => a.transform[4] - b.transform[4])[0];
 
                     if (sHeader) {
+                        const nw = nh.width || nh.transform[0] * 3;
+                        const sx = sHeader.transform[4], sw = sHeader.width || sHeader.transform[0] * 3;
+
+                        // Center-to-Center delta
+                        const nameCenter = nx + (nw / 2);
+                        const signCenter = sx + (sw / 2);
+                        const centerDelta = signCenter - nameCenter;
+
                         headerDeltas.push({
                             nameX: nx,
-                            deltaPdf: sHeader.transform[4] - nx,
+                            deltaPdf: centerDelta,
                             band: { yMin: ny - 700, yMax: ny + 50 }
                         });
                     }
@@ -325,11 +333,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
+                        const canvasW = foundCoord.w * scale;
+
+                        const nameCenter = canvasX + (canvasW / 2);
+                        const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 120) * scale;
+
                         const canvasSigWidth = 110 * sigGlobalScale * scale;
                         const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
 
+                        // Horizontal Center alignment: align signature center with signTargetCenter
                         return {
-                            x: canvasX + (foundCoord.individualDeltaXPdf ?? 120) * scale + offsetX,
+                            x: signTargetCenter - (canvasSigWidth / 2) + offsetX,
                             y: canvasY - (sigBoxHeight / 2) + offsetY
                         };
                     }
@@ -428,8 +442,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                             if (foundCoord && scale) {
                                 const canvasX = foundCoord.x * scale;
+                                const canvasW = foundCoord.w * scale;
                                 const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
-                                initLeft = canvasX + (foundCoord.individualDeltaXPdf ?? 120) * scale + offsetX;
+                                const canvasSigWidth = 110 * sigGlobalScale * scale;
+
+                                const nameCenter = canvasX + (canvasW / 2);
+                                const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 120) * scale;
+
+                                // UI Overlay: Horizontal Center Alignment
+                                initLeft = signTargetCenter - (canvasSigWidth / 2) + offsetX;
                                 initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) - (sigBoxHeight / 2) + offsetY;
                             }
 
