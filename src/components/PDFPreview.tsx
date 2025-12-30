@@ -713,7 +713,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         );
                     })}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.88 Phantom]:</strong><br />
+                    <strong>Raw Text (Y:300-800) [v0.3.89 Phantom]:</strong><br />
                     {
                         rawTextItems.map((item, idx) => (
                             <div key={idx} style={{ color: '#64748b' }}>
