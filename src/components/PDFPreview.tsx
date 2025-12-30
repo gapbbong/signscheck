@@ -132,9 +132,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     // Filter: Only consider headers in the main table area (roughly middle of the page)
                     // and avoid headers at the very top (usually > 650 PDF Y) if they aren't part of a table
                     const possibleSigns = signHeaders.filter(sh =>
+                        ny < 650 && // Skip top header noise
                         Math.abs(sh.transform[5] - ny) < 15 &&
                         sh.transform[4] > nx &&
-                        Math.abs(sh.transform[4] - nx) < 300 // Columns shouldn't be TOO wide
+                        Math.abs(sh.transform[4] - nx) < 200 // Columns shouldn't be TOO wide
                     );
 
                     if (possibleSigns.length > 0) {
