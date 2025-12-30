@@ -85,7 +85,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const getImgWidth = (item: any) => {
                     if (item.width && item.width > 0) return item.width;
                     const fontSize = Math.abs(item.transform[0]);
-                    return fontSize * (item.str.trim().length || 1);
+                    const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(item.str);
+                    // Korean characters are wider (square). Use 1.1x factor for safer centering.
+                    return fontSize * (item.str.trim().length || 1) * (hasKorean ? 1.1 : 0.6);
                 };
 
                 const mergedItems: any[] = [];
@@ -161,7 +163,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5], tw = getImgWidth(item);
-                            let bestDeltaPdf = 135; // Default 135 is more likely for table layouts
+                            let bestDeltaPdf = 140; // Unified fallback to 140 for v0.4.2
                             if (headerDeltas.length > 0) {
                                 const possibleHeaders = headerDeltas.filter(h =>
                                     Math.abs(h.nameX - tx) < 100 && ty > h.band.yMin && ty < h.band.yMax
@@ -202,7 +204,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             if (relevantItems.length > 0) {
                                 const minX = Math.min(...relevantItems.map(i => i.transform[4]));
                                 const maxX = Math.max(...relevantItems.map(i => i.transform[4] + getImgWidth(i)));
-                                let phDeltaPdf = 135;
+                                let phDeltaPdf = 140; // Unified fallback
                                 if (headerDeltas.length > 0) {
                                     const headers = headerDeltas.filter(h => Math.abs(h.nameX - minX) < 100 && avgY > h.band.yMin && avgY < h.band.yMax);
                                     phDeltaPdf = headers.length > 0 ? headers[0].deltaPdf : headerDeltas[0].deltaPdf;
@@ -345,7 +347,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const canvasW = foundCoord.w * scale;
 
                         const nameCenter = canvasX + (canvasW / 2);
-                        const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 120) * scale;
+                        const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
 
                         const canvasSigWidth = 110 * sigGlobalScale * scale;
                         const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
@@ -456,7 +458,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasSigWidth = 110 * sigGlobalScale * scale;
 
                                 const nameCenter = canvasX + (canvasW / 2);
-                                const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 120) * scale;
+                                const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
 
                                 // UI Overlay: Horizontal Center Alignment
                                 initLeft = signTargetCenter - (canvasSigWidth / 2) + offsetX;
