@@ -445,8 +445,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const BASE_W = 110;
                         const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                        // Sync: Name Y is 464, user wants Target Y at 466 -> Use +2px offset
-                        const signY = y + (2 * scale) + offsetY;
+                        // Sync: Name PDF Y is 464, user wants Target PDF Y at 466 -> Use -2px offset in Canvas (Upward)
+                        const signY = y - (2 * scale) + offsetY;
 
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
@@ -501,8 +501,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasSigWidth = currentSigWidth * scale;
 
                                 initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                                // Sync: Name Y is 464, user wants Target Y at 466 -> Use +2px offset
-                                initTop = canvasY + (2 * scale) + offsetY;
+                                // Sync: Name PDF Y is 464, user wants Target PDF Y at 466 -> Use -2px offset in Canvas (Upward)
+                                initTop = canvasY - (2 * scale) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
@@ -531,7 +531,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     </div>
                                     <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
                                         {attendee.name}
-                                        <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>[X:{Math.round(pos.x)} Y:{Math.round(pos.y)}]</span>
+                                        {showDebug && foundCoord && (
+                                            <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>
+                                                [X:{Math.round(foundCoord.x + (foundCoord.individualDeltaXPdf || 120))} Y:{Math.round(foundCoord.y + 2)}]
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
                             );
