@@ -245,7 +245,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     ix > currentX - 5 && // allow tiny overlap or gap
                                     ix < currentX + 150 && // max char spacing
                                     i.str.includes(char);
-                            });
+                            }) as any;
 
                             if (nextItem) {
                                 currentChain.push(nextItem);
@@ -713,7 +713,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         );
                     })}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.89 Phantom]:</strong><br />
+                    <strong>Raw Text (Y:300-800) [v0.3.90 Phantom]:</strong><br />
                     {
                         rawTextItems.map((item, idx) => (
                             <div key={idx} style={{ color: '#64748b' }}>
