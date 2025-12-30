@@ -588,6 +588,32 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 </div>
             </div>
 
+            {/* DEBUG PANEL for Data Inspection */}
+            {showDebug && (
+                <div style={{ padding: '10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white' }}>
+                    <strong>Name Coordinates Dump (v0.3.80):</strong><br />
+                    {Object.entries(nameCoordinates).map(([key, val]) => (
+                        <div key={key}>
+                            "{key}" : Y={Math.round(val.y)} (Raw) | Norm: "{key.replace(/[^a-zA-Z0-9가-힣]/g, '')}"
+                        </div>
+                    ))}
+                    <hr style={{ margin: '5px 0' }} />
+                    <strong>Signature Bindings:</strong><br />
+                    {signedAttendees.map(a => {
+                        const normName = a.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                        const entry = Object.entries(nameCoordinates).find(([name]) =>
+                            name.replace(/[^a-zA-Z0-9가-힣]/g, '') === normName
+                        );
+                        return (
+                            <div key={a.id}>
+                                User "{a.name}" (Norm: "{normName}") -> Matched: {entry ? `"${entry[0]}" (Y=${Math.round(entry[1].y)})` : "NONE"}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+
             <style jsx>{`
                 @keyframes popIn {
                     from { transform: scale(0); opacity: 0; }
