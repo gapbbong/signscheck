@@ -606,7 +606,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         );
                         return (
                             <div key={a.id}>
-                                User "{a.name}" (Norm: "{normName}") -> Matched: {entry ? `"${entry[0]}" (Y=${Math.round(entry[1].y)})` : "NONE"}
+                                User "{a.name}" (Norm: "{normName}") &rarr; Matched: {entry ? `"${entry[0]}" (Y=${Math.round(entry[1].y)})` : "NONE"}
                             </div>
                         );
                     })}
