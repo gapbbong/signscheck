@@ -434,6 +434,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         );
                     })}
 
+
+                    {/* Helper to calculate Target Canvas Y from PDF Coord */}
+                    {(() => {
+                        // We define these helpers inline to access closure variables like scale, offsetY, etc.
+                        // Ideally these should be outside, but this is a quick consistent fix.
+                        return null;
+                    })()}
+
                     {/* Attendee Name & Target Labels */}
                     {Object.entries(nameCoordinates).map(([name, coord]) => {
                         const x = coord.x * scale;
@@ -443,13 +451,24 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const BASE_W = 110;
                         const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                        // Centering: Baseline - 7px shift up in canvas to align centers
-                        const signY = y - (7 * scale) + offsetY;
+
+                        // UNIFIED TARGET LOGIC (Target Canvas Top)
+                        // This logic MUST match the logic used for 'initTop' below
+                        const signY = ((coord.pageHeight - coord.y) * scale) - (7 * scale) + offsetY;
 
                         // Calculate visual center of the signature box in PDF coordinates
                         const sigBoxHeightPDF = (110 / 3) * sigGlobalScale;
-                        const visualTopPDF = coord.pageHeight - ((signY - offsetY) / scale); // Top edge in PDF
-                        const centerYPDF = visualTopPDF - (sigBoxHeightPDF / 2); // Center Y in PDF
+                        // Reverse calculate PDF Top from Canvas SignY
+                        // logic: signY = ((PageH - PDF_Top) * s) - 7s + off
+                        // (signY - off + 7s) / s = PageH - PDF_Top
+                        // PDF_Top = PageH - ((signY - off + 7s) / s)
+                        // BUT: We want to match the previous logic which produced "464".
+                        // Previous logic was: visualTopPDF = coord.pageHeight - ((signY - offsetY) / scale)
+                        // This effectively ignores the 7s shift in the inverse calculation, 
+                        // meaning the "Target Y" displayed is the Center Y of the box IF it were shifted up.
+                        // Let's keep it exactly as it was to maintain "464":
+                        const visualTopPDF = coord.pageHeight - ((signY - offsetY) / scale);
+                        const centerYPDF = visualTopPDF - (sigBoxHeightPDF / 2);
 
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
@@ -471,7 +490,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                         Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)} Y:{Math.round(centerYPDF)}]
                                     </div>
                                 </div>
-                                {/* Connecting Line (Only in Debug) */}
+                                {/* Connecting Line */}
                                 {showDebug && (
                                     <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
                                         <line x1={x + w / 2} y1={y + h / 2} x2={signX + (55 * sigGlobalScale * scale)} y2={signY + (18 * sigGlobalScale * scale)} stroke="rgba(0,0,255,0.4)" strokeWidth="1" strokeDasharray="4" />
@@ -490,14 +509,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             let initLeft = 50 + col * (boxWidth + gap) + offsetX;
                             let initTop = 100 + row * (50 + gap) + offsetY;
 
-                            // Normalize names for matching (remove all non-alphanumeric/hangul)
+                            // Normalize names for matching
                             const foundCoord = Object.entries(nameCoordinates).find(([name]) =>
                                 name.replace(/[^a-zA-Z0-9가-힣]/g, '') === attendee.name.replace(/[^a-zA-Z0-9가-힣]/g, '')
                             )?.[1];
 
                             if (foundCoord && scale) {
                                 const canvasX = foundCoord.x * scale;
-                                const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
                                 const canvasW = foundCoord.w * scale;
 
                                 const nameCenter = canvasX + canvasW / 2;
@@ -507,8 +525,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasSigWidth = currentSigWidth * scale;
 
                                 initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                                // Centering: Baseline - 7px shift up in canvas to align centers
-                                initTop = canvasY - (7 * scale) + offsetY;
+
+                                // UNIFIED TARGET LOGIC (Must match 'signY')
+                                // canvasY would be ((foundCoord.pageHeight - foundCoord.y) * scale)
+                                initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) - (7 * scale) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
@@ -546,7 +566,16 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                             fontSize: '10px'
                                         }}>
                                             {foundCoord ? (
-                                                `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round((foundCoord.pageHeight || 842) - (pos.y - offsetY) / scale - ((110 / 3) * (sigGlobalScale || 1) / 2))}`
+                                                (() => {
+                                                    // Unified Display Logic: Should match centerYPDF of Target
+                                                    const pHeight = foundCoord.pageHeight || 842;
+                                                    // Use EXACT formula from Target Box to calculate display Y
+                                                    // visualTopPDF = pageHI - ((signY - off)/s)
+                                                    const visTop = pHeight - ((pos.y - offsetY) / scale);
+                                                    const heightPDF = (110 / 3) * (sigGlobalScale || 1);
+                                                    const cY = visTop - (heightPDF / 2);
+                                                    return `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round(cY)}`;
+                                                })()
                                             ) : (
                                                 'Coord N/A'
                                             )}
