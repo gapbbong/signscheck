@@ -270,8 +270,29 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         }
                     });
                 });
+                // --- Y-COORDINATE NORMALIZATION: Align signatures on same row ---
+                // Group coordinates by Y proximity (within 15px tolerance)
+                const yGroups: Record<number, string[]> = {};
+                Object.entries(coords).forEach(([name, coord]) => {
+                    const yKey = Math.round(coord.y / 15) * 15; // 15px bucket for row alignment
+                    if (!yGroups[yKey]) yGroups[yKey] = [];
+                    yGroups[yKey].push(name);
+                });
+
+                // Normalize Y values within each group to the average
+                Object.values(yGroups).forEach(names => {
+                    if (names.length > 1) {
+                        const avgY = names.reduce((sum, name) => sum + coords[name].y, 0) / names.length;
+                        names.forEach(name => {
+                            const oldY = coords[name].y;
+                            coords[name].y = avgY;
+                            console.log(`[${name}] Y Normalized: ${oldY.toFixed(1)} → ${avgY.toFixed(1)}`);
+                        });
+                    }
+                });
+
                 console.log("📊 Intelligent Header Deltas:", headerDeltas);
-                console.log("📍 Name Coordinates:", coords);
+                console.log("📍 Name Coordinates (Y-Normalized):", coords);
                 setNameCoordinates(coords);
 
                 setOffsetX(0);
