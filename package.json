@@ -1,6 +1,6 @@
 {
   "name": "signscheck",
-  "version": "0.3.68",
+  "version": "0.3.69",
   "private": true,
   "scripts": {
     "dev": "next dev",

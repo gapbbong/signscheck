@@ -488,7 +488,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             let initLeft = 50 + col * (boxWidth + gap) + offsetX;
                             let initTop = 100 + row * (50 + gap) + offsetY;
 
-                            const foundCoord = nameCoordinates[attendee.name];
+                            // Normalize names for matching (remove spaces)
+                            const foundCoord = Object.entries(nameCoordinates).find(([name]) =>
+                                name.replace(/\s+/g, '') === attendee.name.replace(/\s+/g, '')
+                            )?.[1];
 
                             if (foundCoord && scale) {
                                 const canvasX = foundCoord.x * scale;
@@ -533,8 +536,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', pointerEvents: 'none', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 100 }}>
                                         {attendee.name}
                                         {showDebug && foundCoord && (
-                                            <span style={{ color: '#ef4444', marginLeft: '6px', fontSize: '11px' }}>
-                                                [X:{Math.round((pos.x - offsetX + (110 * sigGlobalScale * scale / 2) - (foundCoord.w * scale / 2)) / scale)}
+                                            <span style={{ color: '#ef4444', marginLeft: '6px' }}>
+                                                [X:{Math.round((pos.x - offsetX + (110 * sigGlobalScale * scale / 2)) / scale)}
                                                 Y:{Math.round(foundCoord.pageHeight - (pos.y - offsetY + (7 * scale)) / scale)}]
                                             </span>
                                         )}
