@@ -445,8 +445,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         const BASE_W = 110;
                         const signX = (x + w / 2) + ((coord.individualDeltaXPdf || 120) * scale) - (BASE_W * sigGlobalScale * scale / 2) + offsetX;
-                        // Move up by 11px scale to match name row center
-                        const signY = y - (11 * scale) + offsetY;
+                        // Shift slightly DOWN (+1 * scale) from name top to center in row
+                        const signY = y + (1 * scale) + offsetY;
 
                         return (
                             <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
@@ -501,8 +501,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasSigWidth = currentSigWidth * scale;
 
                                 initLeft = nameCenter + signCenterDelta - (canvasSigWidth / 2) + offsetX;
-                                // Move up by 11px scale to match name row center
-                                initTop = canvasY - (11 * scale) + offsetY;
+                                // Shift slightly DOWN (+1 * scale) from name top to center in row
+                                initTop = canvasY + (1 * scale) + offsetY;
                             }
 
                             const pos = positions[uniqueId] || { x: initLeft, y: initTop };
