@@ -27,18 +27,16 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
     const renderTaskRef = useRef<any>(null);
 
-    const [showDebug, setShowDebug] = useState(false);
+    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
+    const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number }[]>([]);
+    const [displayScale, setDisplayScale] = useState(1);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    // [Fix] Keyboard Shortcuts: Priority to Standalone Arrows
+    // Keyboard Shortcuts: Space to Confirm, Arrows to Adjust
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             const tag = (e.target as HTMLElement).tagName;
             const isInput = tag === 'INPUT' || tag === 'TEXTAREA';
-
-            if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                setShowDebug(prev => !prev);
-            }
 
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 if (isInput) return;
@@ -63,13 +61,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onConfirm]);
 
-    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
-    const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number }[]>([]);
-    const [debugHeaderDeltas, setDebugHeaderDeltas] = useState<any[]>([]);
-    const [rawTextItems, setRawTextItems] = useState<any[]>([]);
-    const [displayScale, setDisplayScale] = useState(1);
-    const containerRef = useRef<HTMLDivElement>(null);
-
     useEffect(() => {
         const loadPdf = async () => {
             const pdfjsLib = await import('pdfjs-dist');
@@ -85,7 +76,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const textContent = await page.getTextContent();
                 const unscaledViewport = page.getViewport({ scale: 1.0 });
 
-                // 2. Clear Sort & Merge
                 const sortedItems = [...textContent.items].sort((a: any, b: any) => {
                     const ay = a.transform[5], by = b.transform[5];
                     if (Math.abs(ay - by) < 8) return a.transform[4] - b.transform[4];
@@ -107,19 +97,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 });
                 if (currentItem) mergedItems.push(currentItem);
 
-                // Store raw items for debug
-                setRawTextItems(mergedItems.filter((i: any) => {
-                    const y = i.transform[5];
-                    return y > 300 && y < 800; // Filter relevant band
-                }));
-
                 const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
                 const nameHeaders: any[] = [], signHeaders: any[] = [];
                 const detectedHeaders: { str: string, x: number, y: number, w: number, h: number, pageHeight: number }[] = [];
 
                 mergedItems.forEach((item: any) => {
                     const str = item.str.replace(/\s+/g, '');
-                    const isNameHeader = ['교사명', '성명', '이름', '성명', '성 명', '교사', '성함', '성 명'].some(h => str.includes(h));
+                    const isNameHeader = ['교사명', '성명', '이름', '교사', '성함', '성 명'].some(h => str.includes(h));
                     const isSignHeader = ['서명', '서명본', '(인)', '인장', '서명란', '서 명'].some(h => str.includes(h));
 
                     if (isNameHeader && !isSignHeader) {
@@ -134,26 +118,20 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                 const headerDeltas: any[] = [];
                 nameHeaders.forEach(nh => {
-                    const nx = nh.transform[4], ny = nh.transform[5], nw = nh.width || nh.transform[0] * 3;
-
-                    // Find the most suitable sign header for the current name header
+                    const nx = nh.transform[4], ny = nh.transform[5];
                     const sHeader = signHeaders
-                        .filter(sh => Math.abs(sh.transform[5] - ny) < 20) // Roughly on the same line (Y-axis)
-                        .filter(sh => sh.transform[4] > nx && sh.transform[4] < nx + 150) // To the right of name header, within 150px
-                        .sort((a, b) => a.transform[4] - b.transform[4])[0]; // Pick the closest one to the right
+                        .filter(sh => Math.abs(sh.transform[5] - ny) < 20)
+                        .filter(sh => sh.transform[4] > nx && sh.transform[4] < nx + 150)
+                        .sort((a, b) => a.transform[4] - b.transform[4])[0];
 
                     if (sHeader) {
-                        const sx = sHeader.transform[4];
-                        // Distance from Name Left Edge to Sign Left Edge
-                        const leftDelta = sx - nx;
                         headerDeltas.push({
                             nameX: nx,
-                            deltaPdf: leftDelta,
+                            deltaPdf: sHeader.transform[4] - nx,
                             band: { yMin: ny - 700, yMax: ny + 50 }
                         });
                     }
                 });
-                setDebugHeaderDeltas(headerDeltas);
 
                 mergedItems.forEach((item: any) => {
                     const str = item.str.trim();
@@ -166,51 +144,30 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                         if (matchedAttendee) {
                             const tx = item.transform[4], ty = item.transform[5], tw = item.width || item.transform[0] * 2;
-                            let bestDeltaPdf = 120; // Reduced fallback from 280
-
+                            let bestDeltaPdf = 120;
                             if (headerDeltas.length > 0) {
-                                // Find the CLOSEST header in the same vertical band/column
                                 const possibleHeaders = headerDeltas.filter(h =>
                                     Math.abs(h.nameX - tx) < 100 && ty > h.band.yMin && ty < h.band.yMax
                                 );
-
                                 if (possibleHeaders.length > 0) {
-                                    const sameBandHeader = possibleHeaders.sort((a, b) => Math.abs(a.nameX - tx) - Math.abs(b.nameX - tx))[0];
-                                    bestDeltaPdf = sameBandHeader.deltaPdf;
+                                    bestDeltaPdf = possibleHeaders.sort((a, b) => Math.abs(a.nameX - tx) - Math.abs(b.nameX - tx))[0].deltaPdf;
                                 } else {
-                                    // Fallback to closest header by X only
-                                    const closestHeader = headerDeltas.reduce((prev, curr) =>
+                                    bestDeltaPdf = headerDeltas.reduce((prev, curr) =>
                                         Math.abs(curr.nameX - tx) < Math.abs(prev.nameX - tx) ? curr : prev,
                                         headerDeltas[0]
-                                    );
-                                    bestDeltaPdf = closestHeader.deltaPdf;
+                                    ).deltaPdf;
                                 }
                             }
-                            // Robust Logic: Always prefer the HIGHEST Y (Top of page)
-                            // This handles duplicate names (e.g. Table Row vs Footer) regardless of sort order.
-                            const existing = coords[matchedAttendee.name];
-                            if (!existing || ty > existing.y) {
-                                coords[matchedAttendee.name] = {
-                                    x: tx,
-                                    y: ty,
-                                    w: tw,
-                                    pageHeight: unscaledViewport.height,
-                                    individualDeltaXPdf: bestDeltaPdf
-                                };
-                                console.log(`[${matchedAttendee.name}] Updated to Higher Y: ${ty.toFixed(1)}px (Was: ${existing?.y})`);
-                            } else {
-                                console.log(`[${matchedAttendee.name}] Ignored Lower Y: ${ty.toFixed(1)}px (Kept: ${existing.y})`);
-                            }
+                            coords[matchedAttendee.name] = { x: tx, y: ty, w: tw, pageHeight: unscaledViewport.height, individualDeltaXPdf: bestDeltaPdf };
                         }
                     }
                 });
 
-                // --- ROW GROUPING SEARCH: Fix for fragmented names (Row-based) ---
-                // 1. Group items by vertical band (approx 12px tolerance) to handle "Line" detection
+                // --- ROW GROUPING SEARCH ---
                 const rows: Record<number, any[]> = {};
                 sortedItems.forEach((item: any) => {
                     const y = item.transform[5];
-                    const yKey = Math.round(y / 12) * 12; // 12px bucket for row grouping
+                    const yKey = Math.round(y / 12) * 12;
                     if (!rows[yKey]) rows[yKey] = [];
                     rows[yKey].push(item);
                 });
@@ -218,84 +175,30 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 attendees.forEach(att => {
                     const cleanName = att.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
                     if (cleanName.length < 2) return;
-
-                    // Check each "Row" (Y-bucket)
                     Object.entries(rows).forEach(([yKeyStr, rowItems]) => {
-                        // Sort L->R
-                        rowItems.sort((a, b) => a.transform[4] - b.transform[4]);
-
-                        // Build clean string for the entire row
-                        const rowStrRaw = rowItems.map(i => i.str).join('');
+                        const rowStrRaw = rowItems.sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join('');
                         const rowStrClean = rowStrRaw.replace(/[^a-zA-Z0-9가-힣]/g, '');
-
                         if (rowStrClean.includes(cleanName)) {
-                            // This row contains the name!
-                            // Calculate Row Average Y
                             const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
-
-                            // Estimate X by bounding box of matching characters
-                            // Identify items that *likely* contribute to the name
                             const nameChars = cleanName.split('');
                             const relevantItems = rowItems.filter(i => nameChars.some(c => i.str.includes(c)));
-
                             if (relevantItems.length > 0) {
-                                // Calculate bounding box of these "name-like" items in this row
                                 const minX = Math.min(...relevantItems.map(i => i.transform[4]));
                                 const maxX = Math.max(...relevantItems.map(i => i.transform[4] + (i.width || 0)));
-                                const w = maxX - minX;
-
-                                // Header Delta Logic
                                 let phDeltaPdf = 120;
                                 if (headerDeltas.length > 0) {
                                     const headers = headerDeltas.filter(h => Math.abs(h.nameX - minX) < 100 && avgY > h.band.yMin && avgY < h.band.yMax);
-                                    if (headers.length > 0) {
-                                        phDeltaPdf = headers[0].deltaPdf;
-                                    } else {
-                                        phDeltaPdf = headerDeltas[0].deltaPdf;
-                                    }
+                                    phDeltaPdf = headers.length > 0 ? headers[0].deltaPdf : headerDeltas[0].deltaPdf;
                                 }
-
-                                // Update if Higher Y
-                                const currentBest = coords[att.name];
-                                if (!currentBest || avgY > currentBest.y) {
-                                    coords[att.name] = {
-                                        x: minX,
-                                        y: avgY,
-                                        w: w,
-                                        pageHeight: unscaledViewport.height,
-                                        individualDeltaXPdf: phDeltaPdf
-                                    };
-                                    console.log(`[${att.name}] Row Grouping Found Higher Y: ${avgY.toFixed(1)} (Was: ${currentBest?.y})`);
+                                if (!coords[att.name] || avgY > coords[att.name].y) {
+                                    coords[att.name] = { x: minX, y: avgY, w: maxX - minX, pageHeight: unscaledViewport.height, individualDeltaXPdf: phDeltaPdf };
                                 }
                             }
                         }
                     });
                 });
-                // --- Y-COORDINATE NORMALIZATION: Align signatures on same row ---
-                // Group coordinates by Y proximity (within 15px tolerance)
-                const yGroups: Record<number, string[]> = {};
-                Object.entries(coords).forEach(([name, coord]) => {
-                    const yKey = Math.round(coord.y / 15) * 15; // 15px bucket for row alignment
-                    if (!yGroups[yKey]) yGroups[yKey] = [];
-                    yGroups[yKey].push(name);
-                });
 
-                // Normalize Y values within each group to the average
-                Object.values(yGroups).forEach(names => {
-                    if (names.length > 1) {
-                        const avgY = names.reduce((sum, name) => sum + coords[name].y, 0) / names.length;
-                        names.forEach(name => {
-                            const oldY = coords[name].y;
-                            coords[name].y = avgY;
-                            console.log(`[${name}] Y Normalized: ${oldY.toFixed(1)} → ${avgY.toFixed(1)}`);
-                        });
-                    }
-                });
-
-                console.log("📊 Intelligent Header Deltas:", headerDeltas);
-                console.log("📍 Name Coordinates (Y-Normalized):", coords);
                 setNameCoordinates(coords);
-
                 setOffsetX(0);
                 setOffsetY(0);
 
@@ -331,7 +234,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const scaledViewport = page.getViewport({ scale: desiredScale, rotation: (page.rotate + rotation) % 360 });
                 setScale(desiredScale);
 
-                // Update page size state
                 setPageSize({ width: scaledViewport.width, height: scaledViewport.height });
 
                 const context = canvas.getContext('2d');
@@ -349,7 +251,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 renderTaskRef.current = task;
                 await task.promise;
 
-                // Initial scale check
                 setDisplayScale(canvas.clientWidth / canvas.width);
             } catch (error: any) {
                 if (error.name !== 'RenderingCancelledException') {
@@ -424,16 +325,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
                         const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                        const canvasW = foundCoord.w * scale;
-
-                        const nameCenter = canvasX + (canvasW / 2);
-                        const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 120) * scale;
-
                         const canvasSigWidth = 110 * sigGlobalScale * scale;
                         const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
 
-                        // X: align with sign column left edge (match UI)
-                        // Y: Target Y is the CENTER of the signature box (match UI)
                         return {
                             x: canvasX + (foundCoord.individualDeltaXPdf ?? 120) * scale + offsetX,
                             y: canvasY - (sigBoxHeight / 2) + offsetY
@@ -449,7 +343,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pdfX = pos.x / scale;
                 const pdfY = pageHeight - (pos.y / scale);
 
-                // [Fix] Preserve Aspect Ratio (Standard is 3:1 for 600x200)
                 const targetWidth = 110 * sigGlobalScale;
                 const aspect = sigImage.height / sigImage.width;
                 const targetHeight = targetWidth * aspect;
@@ -502,7 +395,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 </div>
                 <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↻ Rotate</button>
                 <button onClick={() => setPositions({})} style={{ backgroundColor: 'rgba(59,130,246,0.8)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↺ Reset</button>
-                <button onClick={() => setShowDebug(!showDebug)} style={{ backgroundColor: showDebug ? '#ef4444' : 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>🐞 Debug</button>
             </div>
 
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
@@ -512,7 +404,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             <div style={{ position: 'relative', margin: '0 auto', width: 'fit-content' }}>
                 <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
 
-                {/* Scaling Overlay Layer: All coordinate-based absolute items go here */}
                 <div style={{
                     position: 'absolute',
                     top: 0,
@@ -523,87 +414,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     transform: `scale(${displayScale})`,
                     transformOrigin: 'top left'
                 }}>
-                    {/* Header Labels (Blue) - Persistent as requested */}
-                    {headerCoords.map((hc, i) => {
-                        const x = hc.x * scale;
-                        const y = (hc.pageHeight - hc.y) * scale;
-                        return (
-                            <div key={`header-${i}`} style={{ position: 'absolute', top: y, left: x, pointerEvents: 'none', zIndex: 40 }}>
-                                <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(59,130,246,0.9)', color: 'white', padding: '1px 4px', borderRadius: '2px', whiteSpace: 'nowrap', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                    {hc.str} [X:{Math.round(hc.x)} Y:{Math.round(hc.y)}]
-                                </div>
-                                <div style={{ width: hc.w * scale, height: 15 * scale, border: '1px dashed rgba(59,130,246,0.5)' }} />
-                            </div>
-                        );
-                    })}
-
-
-                    {/* Helper to calculate Target Canvas Y from PDF Coord */}
-                    {(() => {
-                        // We define these helpers inline to access closure variables like scale, offsetY, etc.
-                        // Ideally these should be outside, but this is a quick consistent fix.
-                        return null;
-                    })()}
-
-                    {/* Attendee Name & Target Labels */}
-                    {Object.entries(nameCoordinates).map(([name, coord]) => {
-                        const x = coord.x * scale;
-                        const y = (coord.pageHeight - coord.y) * scale;
-                        const w = coord.w * scale;
-                        const h = 20 * scale;
-
-                        const BASE_W = 110;
-                        const signX = x + ((coord.individualDeltaXPdf || 120) * scale) + offsetX;
-
-                        // UNIFIED TARGET LOGIC (Target Canvas Top)
-                        // This logic MUST match the logic used for 'initTop' below
-                        const signY = ((coord.pageHeight - coord.y) * scale) + offsetY;
-
-                        // Calculate visual center of the signature box in PDF coordinates
-                        const sigBoxHeightPDF = (110 / 3) * sigGlobalScale;
-                        // Reverse calculate PDF Top from Canvas SignY
-                        // logic: signY = ((PageH - PDF_Top) * s) - 7s + off
-                        // (signY - off + 7s) / s = PageH - PDF_Top
-                        // PDF_Top = PageH - ((signY - off + 7s) / s)
-                        // BUT: We want to match the previous logic which produced "464".
-                        // Previous logic was: visualTopPDF = coord.pageHeight - ((signY - offsetY) / scale)
-                        // This effectively ignores the 7s shift in the inverse calculation, 
-                        // meaning the "Target Y" displayed is the Center Y of the box IF it were shifted up.
-                        // Let's keep it exactly as it was to maintain "464":
-                        const visualTopPDF = coord.pageHeight - ((signY - offsetY) / scale);
-                        const centerYPDF = visualTopPDF - (sigBoxHeightPDF / 2);
-
-                        return (
-                            <div key={`coord-${name}`} style={{ position: 'absolute', pointerEvents: 'none', zIndex: 40 }}>
-                                {/* Name Box (Red) */}
-                                <div style={{
-                                    position: 'absolute', top: y, left: x, width: w, height: h,
-                                    border: '1px solid rgba(255, 0, 0, 0.4)', backgroundColor: 'rgba(255, 0, 0, 0.05)'
-                                }}>
-                                    <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(239,68,68,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                        {name} [X:{Math.round(coord.x)} Y:{Math.round(coord.y)}]
-                                    </div>
-                                </div>
-                                {/* Sign Target (Green) */}
-                                <div style={{
-                                    position: 'absolute', top: signY, left: signX, width: 110 * sigGlobalScale * scale, height: (110 / 3) * sigGlobalScale * scale,
-                                    border: '1px solid rgba(34, 197, 94, 0.4)', backgroundColor: 'rgba(34, 197, 94, 0.05)'
-                                }}>
-                                    <div style={{ position: 'absolute', bottom: '100%', left: 0, fontSize: '9px', backgroundColor: 'rgba(34,197,94,0.9)', color: 'white', padding: '1px 3px', borderRadius: '2px', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>
-                                        Target [Δ:{coord.individualDeltaXPdf?.toFixed(0)} Y:{Math.round(centerYPDF)}]
-                                    </div>
-                                </div>
-                                {/* Connecting Line */}
-                                {showDebug && (
-                                    <svg style={{ position: 'absolute', top: 0, left: 0, width: '2000px', height: '2000px', pointerEvents: 'none' }}>
-                                        <line x1={x + w / 2} y1={y + h / 2} x2={signX + (55 * sigGlobalScale * scale)} y2={signY + (18 * sigGlobalScale * scale)} stroke="rgba(0,0,255,0.4)" strokeWidth="1" strokeDasharray="4" />
-                                    </svg>
-                                )}
-                            </div>
-                        );
-                    })}
-
-                    {/* Signed Attendees overlay layer */}
                     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}>
                         {signedAttendees.map((attendee, index) => {
                             const uniqueId = attendee.id || index.toString();
@@ -612,27 +422,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             let initLeft = 50 + col * (boxWidth + gap) + offsetX;
                             let initTop = 100 + row * (50 + gap) + offsetY;
 
-                            // Normalize names for matching
                             const foundCoord = Object.entries(nameCoordinates).find(([name]) =>
                                 name.replace(/[^a-zA-Z0-9가-힣]/g, '') === attendee.name.replace(/[^a-zA-Z0-9가-힣]/g, '')
                             )?.[1];
 
                             if (foundCoord && scale) {
                                 const canvasX = foundCoord.x * scale;
-                                const canvasW = foundCoord.w * scale;
-
-                                const nameCenter = canvasX + canvasW / 2;
-                                const signCenterDelta = (foundCoord.individualDeltaXPdf ?? 120) * scale;
-
-                                const currentSigWidth = 110 * sigGlobalScale;
-                                const canvasSigWidth = currentSigWidth * scale;
-
-                                // X: align with sign column left edge
-                                initLeft = canvasX + (foundCoord.individualDeltaXPdf ?? 120) * scale + offsetX;
-
-                                // UNIFIED TARGET LOGIC (Must match 'signY')
-                                // Target Y is the CENTER of the signature box, so we need to subtract half the height
                                 const sigBoxHeight = (110 / 3) * sigGlobalScale * scale;
+                                initLeft = canvasX + (foundCoord.individualDeltaXPdf ?? 120) * scale + offsetX;
                                 initTop = ((foundCoord.pageHeight - foundCoord.y) * scale) - (sigBoxHeight / 2) + offsetY;
                             }
 
@@ -662,29 +459,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     </div>
                                     <div style={{ position: 'absolute', top: -22, left: 0, fontSize: '11px', fontWeight: 'bold', backgroundColor: '#fef08a', color: '#1e293b', padding: '2px 6px', borderRadius: '4px', border: '1px solid #eab308', whiteSpace: 'nowrap', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', zIndex: 99999, minWidth: 'max-content' }}>
                                         {attendee.name}
-                                        <span style={{
-                                            color: 'white',
-                                            backgroundColor: '#ef4444',
-                                            marginLeft: '6px',
-                                            padding: '1px 4px',
-                                            borderRadius: '3px',
-                                            fontSize: '10px'
-                                        }}>
-                                            {foundCoord ? (
-                                                (() => {
-                                                    // Unified Display Logic: Should match centerYPDF of Target
-                                                    const pHeight = foundCoord.pageHeight || 842;
-                                                    // Use EXACT formula from Target Box to calculate display Y
-                                                    // visualTopPDF = pageHI - ((signY - off)/s)
-                                                    const visTop = pHeight - ((pos.y - offsetY) / scale);
-                                                    const heightPDF = (110 / 3) * (sigGlobalScale || 1);
-                                                    const cY = visTop - (heightPDF / 2);
-                                                    return `X:${Math.round((pos.x - offsetX + (110 * (sigGlobalScale || 1) * scale / 2)) / scale)} Y:${Math.round(cY)}`;
-                                                })()
-                                            ) : (
-                                                'Coord N/A'
-                                            )}
-                                        </span>
                                     </div>
                                 </div>
                             );
@@ -692,41 +466,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     </div>
                 </div>
             </div>
-
-            {/* DEBUG PANEL for Data Inspection */}
-            {showDebug && (
-                <div style={{ padding: '10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                    <strong>Name Coordinates Dump (v0.3.85):</strong><br />
-                    {Object.entries(nameCoordinates).map(([key, val]) => (
-                        <div key={key}>
-                            "{key}" : Y={Math.round(val.y)} (Raw) | Norm: "{key.replace(/[^a-zA-Z0-9가-힣]/g, '')}"
-                        </div>
-                    ))}
-                    <hr style={{ margin: '5px 0' }} />
-                    <strong>Signature Bindings:</strong><br />
-                    {signedAttendees.map(a => {
-                        const normName = a.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                        const entry = Object.entries(nameCoordinates).find(([name]) =>
-                            name.replace(/[^a-zA-Z0-9가-힣]/g, '') === normName
-                        );
-                        return (
-                            <div key={a.id}>
-                                User "{a.name}" (Norm: "{normName}") &rarr; Matched: {entry ? `"${entry[0]}" (Y=${Math.round(entry[1].y)})` : "NONE"}
-                            </div>
-                        );
-                    })}
-                    <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800) [v0.3.91 Row]:</strong><br />
-                    {
-                        rawTextItems.map((item, idx) => (
-                            <div key={idx} style={{ color: '#64748b' }}>
-                                Y={Math.round(item.transform[5])} | "{item.str}"
-                            </div>
-                        ))
-                    }
-                </div>
-            )}
-
 
             <style jsx>{`
                 @keyframes popIn {
