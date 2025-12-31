@@ -101,7 +101,7 @@ export default function SignPage() {
                                             console.log("PDF loaded successfully via canvas.");
                                             setPdfDoc(docObj);
 
-                                            // Analysis (Mini Row Grouping)
+                                            // Analysis (Mini Row Grouping & Header Detection)
                                             const page = await docObj.getPage(1);
                                             const textContent = await page.getTextContent();
                                             const viewport = page.getViewport({ scale: 1.0 });
@@ -109,14 +109,37 @@ export default function SignPage() {
 
                                             const items = textContent.items as any[];
                                             const rows: Record<number, any[]> = {};
+                                            const kwItems: any[] = [];
+
+                                            // 1. Detect Headers ("교사명", "서명") just like PDFPreview.tsx
+                                            const nameHeaders: any[] = [];
+                                            const signHeaders: any[] = [];
+
                                             items.forEach(item => {
                                                 const yKey = Math.round(item.transform[5] / 12) * 12;
                                                 if (!rows[yKey]) rows[yKey] = [];
                                                 rows[yKey].push(item);
+
+                                                if (item.str.includes("교사명")) nameHeaders.push({ x: item.transform[4], y: item.transform[5], w: item.width || 40 });
+                                                if (item.str.includes("서명")) signHeaders.push({ x: item.transform[4], y: item.transform[5], w: item.width || 40 });
                                             });
 
+                                            // 2. Calculate Header Deltas (Column Support v0.6.9)
+                                            const headerDeltas: any[] = [];
+                                            nameHeaders.forEach(nh => {
+                                                const sH = signHeaders
+                                                    .filter(sh => Math.abs(sh.y - nh.y) < 20)
+                                                    .filter(sh => sh.x > nh.x)
+                                                    .sort((a, b) => a.x - b.x)[0];
+                                                if (sH) {
+                                                    const nameCenter = nh.x + (nh.w / 2);
+                                                    const signCenter = sH.x + (sH.w / 2);
+                                                    headerDeltas.push({ nameX: nh.x, deltaX: signCenter - nameCenter });
+                                                }
+                                            });
+
+                                            // 3. Find Name Position
                                             const cleanMyName = data.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                                            // More flexible pattern for name matching (accommodates spaces/chars)
                                             const namePattern = new RegExp(cleanMyName.split('').join('.*'));
                                             let foundPos: any = null;
 
@@ -125,15 +148,25 @@ export default function SignPage() {
                                                 const rowClean = rowStr.replace(/[^a-zA-Z0-9가-힣]/g, '');
 
                                                 if (namePattern.test(rowClean)) {
-                                                    // Find specific items in the row that match the name for better X-coordinate
                                                     const matchingItems = rowItems.filter(i => namePattern.test(i.str.replace(/[^a-zA-Z0-9가-힣]/g, '')));
                                                     const targetItems = matchingItems.length > 0 ? matchingItems : rowItems;
 
                                                     const minX = Math.min(...targetItems.map(i => i.transform[4]));
                                                     const maxX = Math.max(...targetItems.map(i => i.transform[4] + (i.width || 0)));
+                                                    const w = maxX - minX;
                                                     const avgY = targetItems.reduce((acc, i) => acc + i.transform[5], 0) / targetItems.length;
-                                                    foundPos = { x: minX, y: avgY, w: maxX - minX, delta: 140 };
-                                                    console.log("Name position detected:", foundPos);
+
+                                                    // Use closest header delta (Column Support v0.6.9)
+                                                    let finalDelta = 140;
+                                                    if (headerDeltas.length > 0) {
+                                                        const bestH = headerDeltas.reduce((prev, curr) =>
+                                                            Math.abs(curr.nameX - minX) < Math.abs(prev.nameX - minX) ? curr : prev
+                                                        );
+                                                        finalDelta = bestH.deltaX;
+                                                    }
+
+                                                    foundPos = { x: minX, y: avgY, w: w, delta: finalDelta };
+                                                    console.log("Name detected at row:", yKey, "Pivot Delta:", finalDelta);
                                                 }
                                             });
                                             setNamePos(foundPos);
@@ -371,13 +404,13 @@ export default function SignPage() {
             `}</style>
 
             <main style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-                {/* Success Banner v0.6.8 */}
+                {/* Success Banner v0.6.9 */}
                 {submitted && (
                     <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981', padding: '1.5rem', borderRadius: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative' }}>
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v0.6.8</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v0.6.9</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
