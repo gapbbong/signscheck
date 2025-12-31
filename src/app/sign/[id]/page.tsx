@@ -313,6 +313,9 @@ export default function SignPage() {
                 deviceInfo: deviceInfo,
                 userAgent: navigator.userAgent
             });
+
+            // Update local state for immediate overlay update v0.6.7
+            setRequestData(prev => prev ? { ...prev, signatureUrl: signatureDataUrl, status: 'signed' } : null);
             setSubmitted(true);
         } catch (error) {
             console.error(error);
@@ -411,7 +414,7 @@ export default function SignPage() {
                                 zIndex: 10
                             }}>
                                 <img
-                                    src={submitted ? requestData.signatureUrl : (localStorage.getItem('lastSignature') || '')}
+                                    src={submitted ? (requestData.signatureUrl || localStorage.getItem('lastSignature') || '') : (localStorage.getItem('lastSignature') || '')}
                                     style={{ width: '100%', height: '100%', mixBlendMode: 'multiply', opacity: 0.9 }}
                                     alt="Sign Preview"
                                 />
@@ -512,15 +515,17 @@ export default function SignPage() {
                 )}
             </main>
 
-            <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0' }}>
-                <button
-                    onClick={handleSubmit}
-                    disabled={!isChecked || !hasSigned}
-                    style={{ width: '100%', padding: '1rem', backgroundColor: (isChecked && hasSigned) ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: (isChecked && hasSigned) ? 'pointer' : 'not-allowed' }}
-                >
-                    서명 제출하기
-                </button>
-            </footer>
+            {!submitted && (
+                <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0' }}>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={!isChecked || !hasSigned}
+                        style={{ width: '100%', padding: '1rem', backgroundColor: (isChecked && hasSigned) ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: (isChecked && hasSigned) ? 'pointer' : 'not-allowed' }}
+                    >
+                        서명 제출하기
+                    </button>
+                </footer>
+            )}
 
         </div>
     );
