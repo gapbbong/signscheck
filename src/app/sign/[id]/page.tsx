@@ -116,16 +116,24 @@ export default function SignPage() {
                                             });
 
                                             const cleanMyName = data.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                                            // More flexible pattern for name matching (accommodates spaces/chars)
+                                            const namePattern = new RegExp(cleanMyName.split('').join('.*'));
                                             let foundPos: any = null;
 
                                             Object.entries(rows).forEach(([yKey, rowItems]) => {
                                                 const rowStr = rowItems.map(i => i.str).join('');
                                                 const rowClean = rowStr.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                                                if (rowClean.includes(cleanMyName)) {
-                                                    const minX = Math.min(...rowItems.map(i => i.transform[4]));
-                                                    const maxX = Math.max(...rowItems.map(i => i.transform[4] + (i.width || 0)));
-                                                    const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
+
+                                                if (namePattern.test(rowClean)) {
+                                                    // Find specific items in the row that match the name for better X-coordinate
+                                                    const matchingItems = rowItems.filter(i => namePattern.test(i.str.replace(/[^a-zA-Z0-9가-힣]/g, '')));
+                                                    const targetItems = matchingItems.length > 0 ? matchingItems : rowItems;
+
+                                                    const minX = Math.min(...targetItems.map(i => i.transform[4]));
+                                                    const maxX = Math.max(...targetItems.map(i => i.transform[4] + (i.width || 0)));
+                                                    const avgY = targetItems.reduce((acc, i) => acc + i.transform[5], 0) / targetItems.length;
                                                     foundPos = { x: minX, y: avgY, w: maxX - minX, delta: 140 };
+                                                    console.log("Name position detected:", foundPos);
                                                 }
                                             });
                                             setNamePos(foundPos);
@@ -315,7 +323,7 @@ export default function SignPage() {
             });
 
             // Update local state for immediate overlay update v0.6.7
-            setRequestData(prev => prev ? { ...prev, signatureUrl: signatureDataUrl, status: 'signed' } : null);
+            setRequestData((prev: any) => prev ? { ...prev, signatureUrl: signatureDataUrl, status: 'signed' } : null);
             setSubmitted(true);
         } catch (error) {
             console.error(error);
@@ -363,12 +371,13 @@ export default function SignPage() {
             `}</style>
 
             <main style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-                {/* Success Banner v0.6.6 */}
+                {/* Success Banner v0.6.8 */}
                 {submitted && (
-                    <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981', padding: '1.5rem', borderRadius: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                    <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981', padding: '1.5rem', borderRadius: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative' }}>
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v0.6.8</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
@@ -414,7 +423,7 @@ export default function SignPage() {
                                 zIndex: 10
                             }}>
                                 <img
-                                    src={submitted ? (requestData.signatureUrl || localStorage.getItem('lastSignature') || '') : (localStorage.getItem('lastSignature') || '')}
+                                    src={localStorage.getItem('lastSignature') || requestData.signatureUrl || ''}
                                     style={{ width: '100%', height: '100%', mixBlendMode: 'multiply', opacity: 0.9 }}
                                     alt="Sign Preview"
                                 />
