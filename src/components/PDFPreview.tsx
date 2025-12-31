@@ -19,6 +19,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const [scale, setScale] = useState(1.0);
     const [rotation, setRotation] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [showExportModal, setShowExportModal] = useState(false);
     const { showToast } = useNotification();
 
     const [offsetX, setOffsetX] = useState(0);
@@ -61,11 +62,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             if (e.key.toLowerCase() === 'd' && !isInput) {
                 setShowDebug(prev => !prev);
             }
+
+            // [New v0.8.0] Handle Enter/Space for Export Modal
+            if (showExportModal && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                handleDownload(false);
+            }
         };
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [onConfirm]);
+    }, [onConfirm, showExportModal, isDownloading]);
 
     useEffect(() => {
         const loadPdf = async () => {
@@ -339,16 +346,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
         dragItem.current = null;
     };
 
-    const handleDownload = async () => {
+    const handleDownload = async (includeMetadata: boolean) => {
         if (!file || signedAttendees.length === 0) {
             showToast("서명이 완료된 참가자가 없습니다.", "error");
             return;
         }
 
         setIsDownloading(true);
+        setShowExportModal(false);
         try {
-            const includeMetadata = window.confirm("서명 부가정보(장치, IP, 일시)를 서명 아래에 함께 출력하시겠습니까?");
-
             const arrayBuffer = await file.arrayBuffer();
             const pdfDoc = await PDFDocument.load(arrayBuffer);
             const page = pdfDoc.getPages()[0];
@@ -417,7 +423,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 // Optional Metadata Drawing
                 if (includeMetadata) {
                     const ipPart = attendee.ip || "unknown IP";
-                    const devicePart = attendee.deviceInfo ? attendee.deviceInfo.split(')')[0] + ')' : "unknown Device";
+                    const rawDeviceInfo = attendee.deviceInfo || attendee.userAgent || "unknown Device";
+                    // Clean up deviceInfo: remove Mozilla/5.0 etc. to save space if needed
+                    const devicePart = rawDeviceInfo.includes(')') ? rawDeviceInfo.split(')')[0] + ')' : rawDeviceInfo.substring(0, 30);
 
                     // Force Latin-only date format (YYYY-MM-DD HH:mm:ss) to avoid Helvetica encoding errors
                     const now = new Date();
@@ -427,7 +435,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     page.drawText(metadataStr, {
                         x: centeredX,
-                        y: centeredY - 8,
+                        y: centeredY - 4, // v0.8.1 Reduced gap
                         size: 5,
                         font: font,
                     });
@@ -445,7 +453,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            link.download = `Signed_${file.name}`;
+            link.download = includeMetadata ? `Certified_${file.name}` : `Signed_${file.name}`;
             link.click();
 
         } catch (error) {
@@ -477,7 +485,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             </div>
 
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
-                <button onClick={handleDownload} disabled={isDownloading} style={{ backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.4rem 1rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}>{isDownloading ? 'Processing...' : '💾 Save PDF'}</button>
+                <button onClick={() => setShowExportModal(true)} disabled={isDownloading} style={{ backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.4rem 1rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}>{isDownloading ? 'Processing...' : '💾 Save PDF'}</button>
             </div>
 
             <div style={{ position: 'relative', margin: '0 auto', width: 'fit-content' }}>
@@ -564,9 +572,48 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 </div>
             )}
 
+            {/* Export Mode Selection Modal (v0.8.0) */}
+            {showExportModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, transition: 'all 0.3s ease' }} onClick={() => setShowExportModal(false)}>
+                    <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '1.25rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', maxWidth: '450px', width: '90%', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📄</div>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.5rem' }}>PDF 저장 옵션 선택</h3>
+                            <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: '1.6' }}>서명 부가정보(IP, 기기 정보 등) 없이<br /><b>서명 이미지만 깔끔하게</b> 저장하시겠습니까?</p>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <button
+                                onClick={() => handleDownload(false)}
+                                style={{ width: '100%', padding: '1rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3)', transition: 'all 0.2s' }}
+                                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'}
+                                onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'}
+                            >
+                                깔끔하게 저장 (서명만)
+                                <div style={{ fontSize: '0.7rem', fontWeight: 'normal', opacity: 0.8, marginTop: '2px' }}>[Enter / Space] 키로 즉시 다운로드</div>
+                            </button>
+
+                            <button
+                                onClick={() => handleDownload(true)}
+                                style={{ width: '100%', padding: '0.85rem', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '0.75rem', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
+                            >
+                                인증 정보 포함 저장
+                            </button>
+
+                            <button
+                                onClick={() => setShowExportModal(false)}
+                                style={{ width: '100%', padding: '0.5rem', backgroundColor: 'transparent', color: '#94a3b8', border: 'none', borderRadius: '0.75rem', fontSize: '0.85rem', cursor: 'pointer', textDecoration: 'underline' }}
+                            >
+                                취소
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style jsx>{`
                 @keyframes popIn {
-                    from { transform: scale(0); opacity: 0; }
+                    from { transform: scale(0.9); opacity: 0; }
                     to { transform: scale(1); opacity: 1; }
                 }
             `}</style>
