@@ -404,13 +404,13 @@ export default function SignPage() {
             `}</style>
 
             <main style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-                {/* Success Banner v0.6.9 */}
+                {/* Success Banner v0.7.1 */}
                 {submitted && (
                     <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981', padding: '1.5rem', borderRadius: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative' }}>
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v0.6.9</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v0.7.1</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
@@ -448,10 +448,11 @@ export default function SignPage() {
                         {(submitted || hasSigned) && namePos && !pdfLoadingError && (
                             <div style={{
                                 position: 'absolute',
-                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (40 * renderScale)}px`,
+                                // Centering logic with 64x22 base size v0.7.1 (Moved up by 2)
+                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (32 * renderScale)}px`,
                                 top: `${(pageHeight - namePos.y) * renderScale - (13 * renderScale)}px`,
-                                width: `${80 * renderScale}px`,
-                                height: `${27 * renderScale}px`,
+                                width: `${64 * renderScale}px`,
+                                height: `${22 * renderScale}px`,
                                 pointerEvents: 'none',
                                 zIndex: 10
                             }}>
