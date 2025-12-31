@@ -32,6 +32,7 @@ export default function SignPage() {
     const [renderScale, setRenderScale] = useState(1);
     const [pdfLoadingError, setPdfLoadingError] = useState(false);
     const [isCanvasLoading, setIsCanvasLoading] = useState(true);
+    const [hasStoredSig, setHasStoredSig] = useState(false);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -167,6 +168,12 @@ export default function SignPage() {
 
         fetchRequest();
     }, [id]);
+
+    // Check for stored signature
+    useEffect(() => {
+        const stored = localStorage.getItem('lastSignature');
+        setHasStoredSig(!!stored);
+    }, []);
 
     // [New] Handle .txt attachment content
     useEffect(() => {
@@ -329,16 +336,7 @@ export default function SignPage() {
     if (loading) return <div style={{ padding: '2rem', color: '#fff', backgroundColor: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>데이터를 불러오고 있습니다...</div>;
     if (!requestData) return <div style={{ padding: '2rem', color: '#fff', backgroundColor: '#0f172a', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>요청을 찾을 수 없습니다.</div>;
 
-    if (submitted) return (
-        <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a', color: '#fff', textAlign: 'center', padding: '1.2rem' }}>
-            <h1 style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>✅</h1>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '1rem' }}>서명이 성공적으로 제출되었습니다!</h2>
-            <p style={{ color: '#94a3b8', fontSize: '1.1rem', marginBottom: '1rem', lineHeight: '1.6' }}>
-                문서 처리가 완료되었습니다.<br />
-                보안을 위해 <b>브라우저 탭(창)을 직접 닫아주세요.</b>
-            </p>
-        </div>
-    );
+    // Submitted full-page view removed for persistent layout v0.6.6
 
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', color: '#0f172a' }}>
@@ -362,23 +360,41 @@ export default function SignPage() {
             `}</style>
 
             <main style={{ flex: 1, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
+                {/* Success Banner v0.6.6 */}
+                {submitted && (
+                    <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981', padding: '1.5rem', borderRadius: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+                        <div style={{ fontSize: '2rem' }}>✅</div>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
+                        <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
+                    </div>
+                )}
                 {/* 1. Main PDF Preview */}
                 <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>
                         서명할 문서 확인 (Preview) <span style={{ color: '#ef4444', marginLeft: '8px' }}>※ 서명란은 페이지 맨 아래에 있습니다</span>
                     </label>
-                    <div style={{ width: '100%', height: 'auto', minHeight: '300px', backgroundColor: '#fff', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', position: 'relative' }}>
+                    <div style={{
+                        width: '100%',
+                        aspectRatio: '210 / 297',
+                        height: 'auto',
+                        backgroundColor: '#fff',
+                        borderRadius: '0.5rem',
+                        border: '1px solid #e2e8f0',
+                        position: 'relative',
+                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                        // Remove overflow: hidden to allow bottom parts to be visible if they overflow slightly
+                    }}>
                         {/* Canvas Layer - Attempted approach */}
                         <canvas
                             ref={previewCanvasRef}
-                            style={{ width: '100%', height: 'auto', display: (pdfDoc && !pdfLoadingError) ? 'block' : 'none' }}
+                            style={{ width: '100%', height: 'auto', display: (pdfDoc && !pdfLoadingError) ? 'block' : 'none', borderRadius: '0.5rem' }}
                         />
 
                         {/* Fallback Layer - If canvas fails or loading */}
                         {(pdfLoadingError || (!pdfDoc && !isCanvasLoading)) && (
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
-                                style={{ width: '100%', height: '400px', border: 'none' }}
+                                style={{ width: '100%', height: '100%', border: 'none', borderRadius: '0.5rem' }}
                                 title="Primary PDF Fallback"
                             />
                         )}
@@ -403,7 +419,7 @@ export default function SignPage() {
                         )}
 
                         {!pdfDoc && !pdfLoadingError && isCanvasLoading && (
-                            <div style={{ height: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#94a3b8' }}>
+                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#94a3b8', backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 20 }}>
                                 <div className="spinner"></div>
                                 <div>문서를 불러오고 있습니다...</div>
                             </div>
@@ -411,8 +427,8 @@ export default function SignPage() {
                     </div>
                 </div>
 
-                {/* 2. Attachment (Embedded) */}
-                {requestData.attachmentUrl && (
+                {/* 2. Attachment (Embedded) - Hide after submission */}
+                {requestData.attachmentUrl && !submitted && (
                     <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>첨부파일 (안내문)</label>
                         <div style={{ width: '100%', minHeight: '100px', height: 'auto', maxHeight: '400px', backgroundColor: '#f8fafc', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'auto', padding: '1rem' }}>
@@ -446,50 +462,54 @@ export default function SignPage() {
                     </div>
                 )}
 
-                {/* 3. Signature Area */}
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <div style={{ marginBottom: '1rem', padding: '1.5rem', backgroundColor: '#eff6ff', borderRadius: '1rem', border: '2px solid #3b82f6', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <input type="checkbox" id="confirmCheck" checked={isChecked} onChange={(e) => setIsChecked(e.target.checked)} style={{ width: '24px', height: '24px', accentColor: '#3b82f6', cursor: 'pointer' }} />
-                        <label htmlFor="confirmCheck" style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1e40af', cursor: 'pointer', flex: 1 }}>
-                            위 내용(첨부파일 포함)을 모두 확인하였으며, 이에 서명합니다.
-                        </label>
-                    </div>
+                {/* 3. Signature Area - Hide after submission */}
+                {!submitted && (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ marginBottom: '1rem', padding: '1.5rem', backgroundColor: '#eff6ff', borderRadius: '1rem', border: '2px solid #3b82f6', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <input type="checkbox" id="confirmCheck" checked={isChecked} onChange={(e) => setIsChecked(e.target.checked)} style={{ width: '24px', height: '24px', accentColor: '#3b82f6', cursor: 'pointer' }} />
+                            <label htmlFor="confirmCheck" style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1e40af', cursor: 'pointer', flex: 1 }}>
+                                위 내용(첨부파일 포함)을 모두 확인하였으며, 이에 서명합니다.
+                            </label>
+                        </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                        <label style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>아래 입력칸에 꽉 차게 서명해 주세요</label>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                const saved = localStorage.getItem('lastSignature');
-                                if (saved && canvasRef.current) {
-                                    const img = new Image();
-                                    img.onload = () => {
-                                        const ctx = canvasRef.current?.getContext('2d');
-                                        if (ctx) {
-                                            ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-                                            ctx.drawImage(img, 0, 0);
-                                            setHasSigned(true); // [New] Mark as signed
-                                        }
-                                    };
-                                    img.src = saved;
-                                } else { showToast("저장된 서명이 없습니다.", "error"); }
-                            }}
-                            style={{ fontSize: '0.8rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
-                        >
-                            ↺ 이전 서명 불러오기
-                        </button>
-                    </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                            <label style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>아래 입력칸에 꽉 차게 서명해 주세요</label>
+                            {hasStoredSig && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const saved = localStorage.getItem('lastSignature');
+                                        if (saved && canvasRef.current) {
+                                            const img = new Image();
+                                            img.onload = () => {
+                                                const ctx = canvasRef.current?.getContext('2d');
+                                                if (ctx) {
+                                                    ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
+                                                    ctx.drawImage(img, 0, 0);
+                                                    setHasSigned(true);
+                                                }
+                                            };
+                                            img.src = saved;
+                                        } else { showToast("저장된 서명이 없습니다.", "error"); }
+                                    }}
+                                    style={{ fontSize: '0.8rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
+                                >
+                                    ↺ 이전 서명 불러오기
+                                </button>
+                            )}
+                        </div>
 
-                    <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: `${canvasHeight}px` }}>
-                        <canvas
-                            ref={canvasRef}
-                            style={{ touchAction: 'none', width: '100%', height: '100%' }}
-                            onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing}
-                            onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing}
-                        />
+                        <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: `${canvasHeight}px` }}>
+                            <canvas
+                                ref={canvasRef}
+                                style={{ touchAction: 'none', width: '100%', height: '100%' }}
+                                onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing}
+                                onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing}
+                            />
+                        </div>
+                        <button onClick={handleClear} style={{ marginTop: '0.5rem', alignSelf: 'flex-end', fontSize: '0.9rem', color: '#64748b', background: 'none', border: 'none', textDecoration: 'underline' }}>Clear</button>
                     </div>
-                    <button onClick={handleClear} style={{ marginTop: '0.5rem', alignSelf: 'flex-end', fontSize: '0.8rem', color: '#64748b', background: 'none', border: 'none', textDecoration: 'underline' }}>Clear</button>
-                </div>
+                )}
             </main>
 
             <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0' }}>
