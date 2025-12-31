@@ -30,6 +30,8 @@ export default function SignPage() {
     const [pageHeight, setPageHeight] = useState(0);
     const [namePos, setNamePos] = useState<{ x: number, y: number, w: number, delta: number } | null>(null);
     const [renderScale, setRenderScale] = useState(1);
+    const [pdfLoadingError, setPdfLoadingError] = useState(false);
+    const [isCanvasLoading, setIsCanvasLoading] = useState(true);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -77,48 +79,70 @@ export default function SignPage() {
 
                                 // Load PDF for preview canvas (Use Proxy to avoid CORS hang)
                                 if (data.mainPdfUrl) {
+                                    console.log("Starting PDF load for attendee preview...");
                                     const proxyPdfUrl = `/api/proxy-pdf?url=${encodeURIComponent(data.mainPdfUrl)}`;
-                                    const pdfjsLib = await import('pdfjs-dist');
-                                    pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
-                                    const loadingTask = pdfjsLib.getDocument(proxyPdfUrl);
-                                    const docObj = await loadingTask.promise;
-                                    setPdfDoc(docObj);
+                                    const loadWithTimeout = async () => {
+                                        try {
+                                            const pdfjsLib = await import('pdfjs-dist');
+                                            // Ensure local worker is used
+                                            pdfjsLib.GlobalWorkerOptions.workerSrc = window.location.origin + '/pdf.worker.min.mjs';
 
-                                    // Analysis (Mini Row Grouping)
-                                    const page = await docObj.getPage(1);
-                                    const textContent = await page.getTextContent();
-                                    const viewport = page.getViewport({ scale: 1.0 });
-                                    setPageHeight(viewport.height);
+                                            console.log("Worker initialized:", pdfjsLib.GlobalWorkerOptions.workerSrc);
 
-                                    const items = textContent.items as any[];
-                                    const rows: Record<number, any[]> = {};
-                                    items.forEach(item => {
-                                        const yKey = Math.round(item.transform[5] / 12) * 12;
-                                        if (!rows[yKey]) rows[yKey] = [];
-                                        rows[yKey].push(item);
-                                    });
+                                            const timeoutPromise = new Promise((_, reject) =>
+                                                setTimeout(() => reject(new Error("PDF Load Timeout (5s)")), 5000)
+                                            );
 
-                                    const cleanMyName = data.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                                    let foundPos: any = null;
+                                            const loadingTask = pdfjsLib.getDocument(proxyPdfUrl);
+                                            const docObj = await Promise.race([loadingTask.promise, timeoutPromise]) as any;
 
-                                    Object.entries(rows).forEach(([yKey, rowItems]) => {
-                                        const rowStr = rowItems.map(i => i.str).join('');
-                                        const rowClean = rowStr.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                                        if (rowClean.includes(cleanMyName)) {
-                                            const minX = Math.min(...rowItems.map(i => i.transform[4]));
-                                            const maxX = Math.max(...rowItems.map(i => i.transform[4] + (i.width || 0)));
-                                            const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
+                                            console.log("PDF loaded successfully via canvas.");
+                                            setPdfDoc(docObj);
 
-                                            // Simplistic delta logic for attendee (assume 140 if not found)
-                                            foundPos = { x: minX, y: avgY, w: maxX - minX, delta: 140 };
+                                            // Analysis (Mini Row Grouping)
+                                            const page = await docObj.getPage(1);
+                                            const textContent = await page.getTextContent();
+                                            const viewport = page.getViewport({ scale: 1.0 });
+                                            setPageHeight(viewport.height);
+
+                                            const items = textContent.items as any[];
+                                            const rows: Record<number, any[]> = {};
+                                            items.forEach(item => {
+                                                const yKey = Math.round(item.transform[5] / 12) * 12;
+                                                if (!rows[yKey]) rows[yKey] = [];
+                                                rows[yKey].push(item);
+                                            });
+
+                                            const cleanMyName = data.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                                            let foundPos: any = null;
+
+                                            Object.entries(rows).forEach(([yKey, rowItems]) => {
+                                                const rowStr = rowItems.map(i => i.str).join('');
+                                                const rowClean = rowStr.replace(/[^a-zA-Z0-9가-힣]/g, '');
+                                                if (rowClean.includes(cleanMyName)) {
+                                                    const minX = Math.min(...rowItems.map(i => i.transform[4]));
+                                                    const maxX = Math.max(...rowItems.map(i => i.transform[4] + (i.width || 0)));
+                                                    const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
+                                                    foundPos = { x: minX, y: avgY, w: maxX - minX, delta: 140 };
+                                                }
+                                            });
+                                            setNamePos(foundPos);
+                                            setIsCanvasLoading(false);
+                                        } catch (e) {
+                                            console.error("PDF Canvas Error - Falling back to iframe:", e);
+                                            setPdfLoadingError(true);
+                                            setIsCanvasLoading(false);
                                         }
-                                    });
-                                    setNamePos(foundPos);
+                                    };
+
+                                    loadWithTimeout();
                                 }
                             }
                         } catch (e) {
                             console.error("Meeting fetch error:", e);
+                            setPdfLoadingError(true); // Also set error if meeting fetch fails
+                            setIsCanvasLoading(false);
                         }
                     }
 
@@ -129,9 +153,13 @@ export default function SignPage() {
                     setRequestData(data);
                 } else {
                     console.error("Request not found:", id);
+                    setPdfLoadingError(true); // If request not found, also fallback
+                    setIsCanvasLoading(false);
                 }
             } catch (error: any) {
                 console.error("Fetch error:", error);
+                setPdfLoadingError(true); // General fetch error
+                setIsCanvasLoading(false);
             } finally {
                 setLoading(false);
             }
@@ -163,7 +191,7 @@ export default function SignPage() {
 
     // [New] Render Preview PDF onto Canvas
     useEffect(() => {
-        if (!pdfDoc || !previewCanvasRef.current) return;
+        if (!pdfDoc || !previewCanvasRef.current || pdfLoadingError) return; // Don't render if error
         const render = async () => {
             const page = await pdfDoc.getPage(1);
             const canvas = previewCanvasRef.current!;
@@ -182,7 +210,7 @@ export default function SignPage() {
             await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
         };
         render();
-    }, [pdfDoc, submitted]); // Re-render on submission to show overlay
+    }, [pdfDoc, submitted, pdfLoadingError]); // Re-render on submission to show overlay
 
     // [New] Auto-close listener (Enter/Space)
     useEffect(() => {
@@ -340,10 +368,23 @@ export default function SignPage() {
                         서명할 문서 확인 (Preview) <span style={{ color: '#ef4444', marginLeft: '8px' }}>※ 서명란은 페이지 맨 아래에 있습니다</span>
                     </label>
                     <div style={{ width: '100%', height: 'auto', minHeight: '300px', backgroundColor: '#fff', borderRadius: '0.5rem', border: '1px solid #e2e8f0', overflow: 'hidden', position: 'relative' }}>
-                        <canvas ref={previewCanvasRef} style={{ width: '100%', height: 'auto', display: 'block' }} />
+                        {/* Canvas Layer - Attempted approach */}
+                        <canvas
+                            ref={previewCanvasRef}
+                            style={{ width: '100%', height: 'auto', display: (pdfDoc && !pdfLoadingError) ? 'block' : 'none' }}
+                        />
 
-                        {/* Real-time Signature Overlay (After submission or during check) */}
-                        {(submitted || hasSigned) && namePos && (
+                        {/* Fallback Layer - If canvas fails or loading */}
+                        {(pdfLoadingError || (!pdfDoc && !isCanvasLoading)) && (
+                            <iframe
+                                src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
+                                style={{ width: '100%', height: '400px', border: 'none' }}
+                                title="Primary PDF Fallback"
+                            />
+                        )}
+
+                        {/* Real-time Signature Overlay (Only works if name detection succeeded) */}
+                        {(submitted || hasSigned) && namePos && !pdfLoadingError && (
                             <div style={{
                                 position: 'absolute',
                                 left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (40 * renderScale)}px`,
@@ -361,7 +402,7 @@ export default function SignPage() {
                             </div>
                         )}
 
-                        {!pdfDoc && (
+                        {!pdfDoc && !pdfLoadingError && isCanvasLoading && (
                             <div style={{ height: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#94a3b8' }}>
                                 <div className="spinner"></div>
                                 <div>문서를 불러오고 있습니다...</div>
