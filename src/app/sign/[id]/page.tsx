@@ -363,13 +363,16 @@ export default function SignPage() {
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.4</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.4.1</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
                 <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>
-                        서명할 문서 확인 (Preview) <span style={{ color: '#ef4444', marginLeft: '8px' }}>※ 서명란은 페이지 맨 아래에 있습니다</span>
+                        서명할 문서 확인 (Preview)
+                        <span style={{ color: '#ef4444', marginLeft: '8px', fontSize: '0.8rem' }}>
+                            {submitted ? "※ 서명 위치가 실제와 약간 차이가 있을 수 있습니다" : "※ 서명란은 페이지 맨 아래에 있습니다"}
+                        </span>
                     </label>
                     <div style={{
                         width: '100%',
