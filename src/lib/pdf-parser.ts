@@ -15,7 +15,7 @@ export interface PDFTextItem {
 export async function extractStructuredTextFromPDF(file: File): Promise<PDFTextItem[]> {
     // [SSR Fix] Lazy load pdfjsLib
     const pdfjsLib = await import('pdfjs-dist');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;

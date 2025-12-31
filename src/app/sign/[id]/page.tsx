@@ -95,8 +95,8 @@ export default function SignPage() {
                                     const loadWithTimeout = async () => {
                                         try {
                                             const pdfjsLib = await import('pdfjs-dist');
-                                            // Ensure local worker is used
-                                            pdfjsLib.GlobalWorkerOptions.workerSrc = window.location.origin + '/pdf.worker.min.mjs';
+                                            // Ensure CDN worker is used for stability
+                                            pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
                                             console.log("Worker initialized:", pdfjsLib.GlobalWorkerOptions.workerSrc);
 
@@ -363,7 +363,7 @@ export default function SignPage() {
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.0.3</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.4</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
