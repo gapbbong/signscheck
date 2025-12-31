@@ -6,6 +6,12 @@ import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
 import { useNotification } from '@/lib/NotificationContext';
+import {
+    groupItemsIntoRows,
+    detectHeaderDeltas,
+    findNamePosition,
+    PDFTextItem
+} from '@/lib/pdf-analyzer';
 
 export default function SignPage() {
     const params = useParams();
@@ -111,67 +117,11 @@ export default function SignPage() {
                                             setPageHeight(viewport.height);
 
                                             const items = textContent.items as any[];
-                                            const rows: Record<number, any[]> = {};
-                                            const kwItems: any[] = [];
+                                            // Analysis using centralized pdf-analyzer logic (v0.8.5)
+                                            const rows = groupItemsIntoRows(items as PDFTextItem[]);
+                                            const headerDeltas = detectHeaderDeltas(items as PDFTextItem[]);
+                                            const foundPos = findNamePosition(data.name, rows, headerDeltas);
 
-                                            // 1. Detect Headers ("교사명", "서명") just like PDFPreview.tsx
-                                            const nameHeaders: any[] = [];
-                                            const signHeaders: any[] = [];
-
-                                            items.forEach(item => {
-                                                const yKey = Math.round(item.transform[5] / 12) * 12;
-                                                if (!rows[yKey]) rows[yKey] = [];
-                                                rows[yKey].push(item);
-
-                                                if (item.str.includes("교사명")) nameHeaders.push({ x: item.transform[4], y: item.transform[5], w: item.width || 40 });
-                                                if (item.str.includes("서명")) signHeaders.push({ x: item.transform[4], y: item.transform[5], w: item.width || 40 });
-                                            });
-
-                                            // 2. Calculate Header Deltas (Column Support v0.6.9)
-                                            const headerDeltas: any[] = [];
-                                            nameHeaders.forEach(nh => {
-                                                const sH = signHeaders
-                                                    .filter(sh => Math.abs(sh.y - nh.y) < 20)
-                                                    .filter(sh => sh.x > nh.x)
-                                                    .sort((a, b) => a.x - b.x)[0];
-                                                if (sH) {
-                                                    const nameCenter = nh.x + (nh.w / 2);
-                                                    const signCenter = sH.x + (sH.w / 2);
-                                                    headerDeltas.push({ nameX: nh.x, deltaX: signCenter - nameCenter });
-                                                }
-                                            });
-
-                                            // 3. Find Name Position
-                                            const cleanMyName = data.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                                            const namePattern = new RegExp(cleanMyName.split('').join('.*'));
-                                            let foundPos: any = null;
-
-                                            Object.entries(rows).forEach(([yKey, rowItems]) => {
-                                                const rowStr = rowItems.map(i => i.str).join('');
-                                                const rowClean = rowStr.replace(/[^a-zA-Z0-9가-힣]/g, '');
-
-                                                if (namePattern.test(rowClean)) {
-                                                    const matchingItems = rowItems.filter(i => namePattern.test(i.str.replace(/[^a-zA-Z0-9가-힣]/g, '')));
-                                                    const targetItems = matchingItems.length > 0 ? matchingItems : rowItems;
-
-                                                    const minX = Math.min(...targetItems.map(i => i.transform[4]));
-                                                    const maxX = Math.max(...targetItems.map(i => i.transform[4] + (i.width || 0)));
-                                                    const w = maxX - minX;
-                                                    const avgY = targetItems.reduce((acc, i) => acc + i.transform[5], 0) / targetItems.length;
-
-                                                    // Use closest header delta (Column Support v0.6.9)
-                                                    let finalDelta = 140;
-                                                    if (headerDeltas.length > 0) {
-                                                        const bestH = headerDeltas.reduce((prev, curr) =>
-                                                            Math.abs(curr.nameX - minX) < Math.abs(prev.nameX - minX) ? curr : prev
-                                                        );
-                                                        finalDelta = bestH.deltaX;
-                                                    }
-
-                                                    foundPos = { x: minX, y: avgY, w: w, delta: finalDelta };
-                                                    console.log("Name detected at row:", yKey, "Pivot Delta:", finalDelta);
-                                                }
-                                            });
                                             setNamePos(foundPos);
                                             setIsCanvasLoading(false);
                                         } catch (e) {
@@ -413,7 +363,7 @@ export default function SignPage() {
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v0.8.1</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.0.2</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
@@ -451,11 +401,11 @@ export default function SignPage() {
                         {(submitted || hasSigned) && namePos && !pdfLoadingError && (
                             <div style={{
                                 position: 'absolute',
-                                // Centering logic with 64x22 base size v0.7.1 (Moved up by 2)
-                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (32 * renderScale)}px`,
-                                top: `${(pageHeight - namePos.y) * renderScale - (13 * renderScale)}px`,
-                                width: `${64 * renderScale}px`,
-                                height: `${22 * renderScale}px`,
+                                // Centering logic with 60x15 slimmer size (v1.0.1)
+                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * renderScale)}px`,
+                                top: `${(pageHeight - namePos.y) * renderScale - (17 * renderScale)}px`,
+                                width: `${60 * renderScale}px`,
+                                height: `${15 * renderScale}px`,
                                 pointerEvents: 'none',
                                 zIndex: 10
                             }}>

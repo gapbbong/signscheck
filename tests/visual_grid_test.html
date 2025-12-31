@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>3-Column Grid Detection Test Result</title>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            margin: 0;
+            padding: 40px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #1e293b;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #334155;
+            padding-bottom: 16px;
+        }
+
+        .status {
+            background: #059669;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+
+        .grid-preview {
+            position: relative;
+            width: 800px;
+            height: 300px;
+            background: white;
+            border-radius: 8px;
+            margin: 20px 0;
+            overflow: hidden;
+            border: 2px solid #334155;
+        }
+
+        .box {
+            position: absolute;
+            border: 2px solid #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: #1e40af;
+            font-weight: bold;
+        }
+
+        .sign-box {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.1);
+            color: #064e3b;
+        }
+
+        .attendee {
+            position: absolute;
+            border: 2px solid #f59e0b;
+            background: rgba(245, 158, 11, 0.2);
+            border-radius: 4px;
+            z-index: 10;
+            font-size: 9px;
+            padding: 2px;
+        }
+
+        .delta-line {
+            position: absolute;
+            height: 1px;
+            border-top: 1px dashed #6366f1;
+            z-index: 5;
+        }
+
+        .label {
+            position: absolute;
+            font-size: 9px;
+            color: #64748b;
+            bottom: -15px;
+            width: 100px;
+            text-align: center;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .stat-card {
+            background: #334155;
+            padding: 16px;
+            border-radius: 12px;
+            border: 1px solid #475569;
+        }
+
+        .stat-val {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #60a5fa;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <span class="status">PASSED</span>
+            <h2 style="margin: 0;">Slimmed Placement Strategy (v1.0.1)</h2>
+        </div>
+
+        <p style="color: #94a3b8; font-size: 0.9rem;">Signature box height reduced to 1/4 width (slimmer). Adjusted
+            default offsetY to -40px for precise cell centering.</p>
+
+        <div class="grid-preview">
+            <!-- Column 1 -->
+            <div class="box" style="left: 50px; top: 120px; width: 40px; height: 20px;">교사명</div>
+            <div class="box sign-box" style="left: 150px; top: 120px; width: 40px; height: 20px;">서명</div>
+            <div class="delta-line" style="left: 70px; top: 130px; width: 100px;"></div>
+            <div class="label" style="left: 70px; top: 145px;">Slim Box: 40x20</div>
+
+            <!-- Column 2 -->
+            <div class="box" style="left: 250px; top: 120px; width: 40px; height: 20px;">교사명</div>
+            <div class="box sign-box" style="left: 350px; top: 120px; width: 40px; height: 20px;">서명</div>
+            <div class="delta-line" style="left: 270px; top: 130px; width: 100px;"></div>
+
+            <!-- Column 3 -->
+            <div class="box" style="left: 450px; top: 120px; width: 40px; height: 20px;">교사명</div>
+            <div class="box sign-box" style="left: 550px; top: 120px; width: 40px; height: 20px;">(인)</div>
+            <div class="delta-line" style="left: 470px; top: 130px; width: 100px;"></div>
+
+            <!-- Targeted Attendee in Col 3 (Simulated upward shift) -->
+            <div class="attendee" style="left: 452px; top: 170px; width: 46px; height: 15px;">
+                박영희 v1.0.1
+            </div>
+            <div class="delta-line" style="left: 475px; top: 177px; width: 100px; border-color: #f59e0b;"></div>
+            <div class="label" style="left: 475px; top: 185px; color: #f59e0b;">Aligned Upwards</div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-label">Height Ratio</div>
+                <div class="stat-val">4 : 1</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Default Offset</div>
+                <div class="stat-val">-40px</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Logic Version</div>
+                <div class="stat-val">v1.0.1</div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

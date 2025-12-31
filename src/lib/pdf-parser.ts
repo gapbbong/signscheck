@@ -86,13 +86,20 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
             // [New] Sort items within the column by Y coordinate descending (Top to Bottom)
             columnItems.sort((a, b) => b.y - a.y);
 
-            columnItems.forEach(item => {
+            // [New] Use for...of to allow breaking (Stop scanning when table ends)
+            for (const item of columnItems) {
+                const s = item.str.replace(/\s+/g, '');
+                // Stop triggers: Section headers or long sentences indicating body text
+                if (s.includes("상정") || s.includes("안건") || s.includes("결정") || s.includes("202") || s.length > 8) {
+                    break;
+                }
+
                 // Only extract if the string is short (likely a name, not a sentence)
                 if (item.str.length >= 2 && item.str.length <= 4) {
                     const names = extractNamesFromRawString(item.str);
                     names.forEach(n => potentialNames.add(n));
                 }
-            });
+            }
         });
     }
 
@@ -124,27 +131,36 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
         "법정위", "학운위", "교권보호", "선도위", "학폭위", "내용이", "기록되", "개조식", "서명본",
         "학년도", "교직원", "교사명", "학교장", "담당자", "비고", "연번", "행정실", "명렬", "고등학",
         "디지털", "선도학", "동의서", "법령", "학교명", "교육부", "교육청", "본인은", "해당사",
-        "관련", "정보가", "법령", "동의서", "서명", "성명", "소속", "직위", "연락처"
+        "관련", "정보가", "법령", "동의서", "서명", "성명", "소속", "직위", "연락처",
+        // User Reported Garbage
+        "상정", "대기중", "대기", "하도록", "획이", "없는", "기자재를", "지난", "기자재는",
+        "기자재", "진행하게", "혹시", "추가로", "모두", "없습니다", "참조해", "주시기",
+        "결정사항", "모니터", "점검때", "지적", "바랍니다", "기존", "받은", "노후", "하는",
+        "기자재가", "있는", "실습실에", "점이", "폐기를", "사용하지", "사용하던", "재구조화",
+        "실습실이", "있나요", "폐기", "자세한", "같이", "결정함", "프로젝터", "케이블",
+        "폐기에", "관한", "협의", "회의를", "않거나", "추후", "사용계", "내용연수",
+        "인해", "이제", "내용은", "첨부된", "거치대"
     ]);
 
     const forbiddenSubstrings = [
         "취지와", "운용내", "이해하", "교원으", "자발적", "참여할",
         "동의합", "사업운", "필요한", "범위내", "소속부", "학번학", "연락처", "기본인", "사항사",
         "수업연", "활동내", "결과물", "정보가", "관련법", "개인정", "처리지", "따라수", "집이용",
-        "학기말", "방학중", "학기중"
+        "학기말", "방학중", "학기중", "상정안", "결정사"
     ];
 
     return Array.from(potentialNames).filter(name => {
-        if (exactStopWords.has(name)) return false;
-        if (name.length < 2 || name.length > 4) return false;
+        const cleanName = name.replace(/\s+/g, '');
+        if (exactStopWords.has(cleanName)) return false;
+        if (cleanName.length < 2 || cleanName.length > 4) return false;
 
         // Use exact match for common words like "이상" to avoid filtering "이상수"
         // Only use substring check for very specific preamble noise bits
         for (const forbidden of forbiddenSubstrings) {
-            if (name.includes(forbidden)) return false;
+            if (cleanName.includes(forbidden)) return false;
         }
-        if (name.endsWith('실') || name.endsWith('팀') || name.endsWith('과')) return false;
-        if (name.endsWith('고') || name.endsWith('중') || name.endsWith('초')) return false;
+        if (cleanName.endsWith('실') || cleanName.endsWith('팀') || cleanName.endsWith('과')) return false;
+        if (cleanName.endsWith('고') || cleanName.endsWith('중') || cleanName.endsWith('초')) return false;
         return true;
     });
 }

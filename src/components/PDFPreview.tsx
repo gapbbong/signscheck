@@ -2,13 +2,20 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
-import { Attendee } from '@/lib/gas-service';
-import { updateMeetingHash } from '@/lib/meeting-service';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import {
+    groupItemsIntoRows,
+    detectHeaderDeltas,
+    findNamePosition,
+    PDFTextItem
+} from '@/lib/pdf-analyzer';
 import { useNotification } from '@/lib/NotificationContext';
+import { updateMeetingHash } from '@/lib/meeting-service';
 
 interface Props {
     file: File;
-    attendees: (Attendee & { id?: string; status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string })[];
+    attendees: (any & { id?: string; status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string })[];
     onConfirm?: () => void;
     meetingId?: string | null;
 }
@@ -23,7 +30,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const { showToast } = useNotification();
 
     const [offsetX, setOffsetX] = useState(0);
-    const [offsetY, setOffsetY] = useState(-35);
+    const [offsetY, setOffsetY] = useState(-40);
     const [sigGlobalScale, setSigGlobalScale] = useState(1.0);
 
     const renderTaskRef = useRef<any>(null);
@@ -63,7 +70,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 setShowDebug(prev => !prev);
             }
 
-            // [New v0.8.0] Handle Enter/Space for Export Modal
             if (showExportModal && (e.key === 'Enter' || e.key === ' ')) {
                 e.preventDefault();
                 handleDownload(false);
@@ -98,152 +104,25 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     return by - ay;
                 });
 
-                const getImgWidth = (item: any) => {
-                    if (item.width && item.width > 0) return item.width;
-                    const fontSize = Math.abs(item.transform[0]);
-                    const hasKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(item.str);
-                    return fontSize * (item.str.trim().length || 1) * (hasKorean ? 1.1 : 0.6);
-                };
-
-                const mergedItems: any[] = [];
-                let currentItem: any = null;
-                sortedItems.forEach((item: any) => {
-                    if (!currentItem) { currentItem = { ...item }; return; }
-                    const prevY = currentItem.transform[5], currY = item.transform[5];
-                    const prevRight = currentItem.transform[4] + getImgWidth(currentItem);
-                    if (Math.abs(prevY - currY) < 5 && (item.transform[4] - prevRight) < 15) {
-                        const oldX = currentItem.transform[4];
-                        currentItem.str += item.str;
-                        const newRight = item.transform[4] + getImgWidth(item);
-                        currentItem.width = newRight - oldX;
-                    } else {
-                        mergedItems.push(currentItem);
-                        currentItem = { ...item };
-                    }
-                });
-                if (currentItem) mergedItems.push(currentItem);
+                // Analysis using centralized pdf-analyzer logic (v0.8.5)
+                const items = sortedItems as any as PDFTextItem[];
+                const rows = groupItemsIntoRows(items);
+                const headerDeltas = detectHeaderDeltas(items);
 
                 const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
-                const nameHeaders: any[] = [], signHeaders: any[] = [];
-                const allScannerHeaders: { str: string, x: number, y: number, w: number, h: number, pageHeight: number, type: 'name' | 'sign' }[] = [];
 
-                const nameKeywords = ['교사명', '성명', '이름', '교사', '성함', '성 명'];
-                const signKeywords = ['서명', '서명본', '(인)', '인장', '서명란', '서 명'];
-
-                mergedItems.forEach((item: any) => {
-                    const str = item.str;
-                    const itemW = getImgWidth(item);
-
-                    // Scanner: find all sub-positions
-                    nameKeywords.forEach(kw => {
-                        let pos = str.indexOf(kw);
-                        while (pos !== -1) {
-                            const charFactor = pos / (str.length || 1);
-                            const nx = item.transform[4] + (itemW * charFactor);
-                            const nw = (itemW / (str.length || 1)) * kw.length;
-                            const hObj = { str: kw, x: nx, y: item.transform[5], w: nw, h: 20, pageHeight: unscaledViewport.height, type: 'name' as const };
-                            allScannerHeaders.push(hObj);
-                            nameHeaders.push({ ...hObj, transform: [0, 0, 0, 0, nx, item.transform[5]] });
-                            pos = str.indexOf(kw, pos + 1);
-                        }
-                    });
-
-                    signKeywords.forEach(kw => {
-                        let pos = str.indexOf(kw);
-                        while (pos !== -1) {
-                            const charFactor = pos / (str.length || 1);
-                            const sx = item.transform[4] + (itemW * charFactor);
-                            const sw = (itemW / (str.length || 1)) * kw.length;
-                            const hObj = { str: kw, x: sx, y: item.transform[5], w: sw, h: 20, pageHeight: unscaledViewport.height, type: 'sign' as const };
-                            allScannerHeaders.push(hObj);
-                            signHeaders.push({ ...hObj, transform: [0, 0, 0, 0, sx, item.transform[5]], width: sw });
-                            pos = str.indexOf(kw, pos + 1);
-                        }
-                    });
-                });
-                setHeaderCoords(allScannerHeaders);
-
-                const headerDeltas: any[] = [];
-                nameHeaders.forEach(nh => {
-                    const nx = nh.x, ny = nh.y;
-                    const sHeader = signHeaders
-                        .filter(sh => Math.abs(sh.y - ny) < 20)
-                        .filter(sh => sh.x > nx && sh.x < nx + 400)
-                        .sort((a, b) => a.x - b.x)[0];
-
-                    if (sHeader) {
-                        const signCenter = sHeader.x + (sHeader.w / 2);
-                        headerDeltas.push({
-                            nameX: nx,
-                            signCenterX: signCenter,
-                            band: { yMin: ny - 700, yMax: ny + 50 }
-                        });
+                for (const attendee of attendees) {
+                    const foundPos = (findNamePosition(attendee.name, rows, headerDeltas) as unknown) as { x: number, y: number, w: number, delta: number };
+                    if (foundPos) {
+                        coords[attendee.name] = {
+                            x: foundPos.x,
+                            y: foundPos.y,
+                            w: foundPos.w,
+                            pageHeight: unscaledViewport.height,
+                            individualDeltaXPdf: foundPos.delta
+                        };
                     }
-                });
-
-                // --- ROW GROUPING SEARCH ---
-                const rows: Record<number, any[]> = {};
-                sortedItems.forEach((item: any) => {
-                    const y = item.transform[5];
-                    const yKey = Math.round(y / 12) * 12;
-                    if (!rows[yKey]) rows[yKey] = [];
-                    rows[yKey].push(item);
-                });
-
-                attendees.forEach(att => {
-                    const cleanName = att.name.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                    if (cleanName.length < 2) return;
-                    Object.entries(rows).forEach(([yKeyStr, rowItems]) => {
-                        rowItems.sort((a, b) => a.transform[4] - b.transform[4]);
-                        const rowStrFull = rowItems.map(i => i.str).join('');
-                        const rowStrClean = rowStrFull.replace(/[^a-zA-Z0-9가-힣]/g, '');
-
-                        if (rowStrClean.includes(cleanName)) {
-                            const avgY = rowItems.reduce((acc, i) => acc + i.transform[5], 0) / rowItems.length;
-                            let bestRange: any[] = [];
-                            let minRangeWidth = Infinity;
-
-                            for (let start = 0; start < rowItems.length; start++) {
-                                let currentStr = "";
-                                for (let end = start; end < rowItems.length; end++) {
-                                    currentStr += rowItems[end].str.replace(/[^a-zA-Z0-9가-힣]/g, '');
-                                    if (currentStr.includes(cleanName)) {
-                                        const range = rowItems.slice(start, end + 1);
-                                        const rMinX = Math.min(...range.map(r => r.transform[4]));
-                                        const rMaxX = Math.max(...range.map(r => r.transform[4] + getImgWidth(r)));
-                                        const rWidth = rMaxX - rMinX;
-                                        if (rWidth < minRangeWidth) {
-                                            minRangeWidth = rWidth;
-                                            bestRange = range;
-                                        }
-                                        break;
-                                    }
-                                }
-                            }
-
-                            if (bestRange.length > 0) {
-                                const minX = Math.min(...bestRange.map(i => i.transform[4]));
-                                const maxX = Math.max(...bestRange.map(i => i.transform[4] + getImgWidth(i)));
-                                const w = maxX - minX;
-
-                                let phDeltaPdf = 140;
-                                if (headerDeltas.length > 0) {
-                                    // Robust Column Matching: Find header closest to name's X
-                                    let bestHeader = headerDeltas.reduce((prev, curr) =>
-                                        Math.abs(curr.nameX - minX) < Math.abs(prev.nameX - minX) ? curr : prev,
-                                        headerDeltas[0]
-                                    );
-                                    // phDeltaPdf is how much to add to the name's center to get signature center
-                                    phDeltaPdf = bestHeader.signCenterX - (minX + w / 2);
-                                }
-
-                                if (!coords[att.name] || avgY > coords[att.name].y) {
-                                    coords[att.name] = { x: minX, y: avgY, w: w, pageHeight: unscaledViewport.height, individualDeltaXPdf: phDeltaPdf };
-                                }
-                            }
-                        }
-                    });
-                });
+                }
 
                 setNameCoordinates(coords);
                 setOffsetX(0);
@@ -255,8 +134,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
         };
         loadPdf();
     }, [file, attendees]);
-
-    const [pageSize, setPageSize] = useState<{ width: number, height: number } | null>(null);
 
     useEffect(() => {
         if (!pdfDoc || !canvasRef.current) return;
@@ -280,8 +157,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const desiredScale = 1.0;
                 const scaledViewport = page.getViewport({ scale: desiredScale, rotation: (page.rotate + rotation) % 360 });
                 setScale(desiredScale);
-
-                setPageSize({ width: scaledViewport.width, height: scaledViewport.height });
 
                 const context = canvas.getContext('2d');
                 if (!context) return;
@@ -360,8 +235,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             const page = pdfDoc.getPages()[0];
             const { height: pageHeight } = page.getSize();
 
-            const pdfjsLib = await import('pdfjs-dist');
-            const font = await pdfDoc.embedFont('Helvetica'); // Metadata font
+            const font = await pdfDoc.embedFont('Helvetica');
 
             for (const attendee of signedAttendees) {
                 if (!attendee.signatureUrl) continue;
@@ -382,7 +256,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                         const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
 
                         const canvasSigWidth = 80 * sigGlobalScale * scale;
-                        const sigBoxHeight = (80 / 3) * sigGlobalScale * scale;
+                        const sigBoxHeight = (80 / 4) * sigGlobalScale * scale;
 
                         return {
                             x: signTargetCenter - (canvasSigWidth / 2) + offsetX,
@@ -400,7 +274,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const pdfY = pageHeight - (pos.y / scale);
 
                 const boxWidth = 80 * sigGlobalScale;
-                const boxHeight = (80 / 3) * sigGlobalScale;
+                const boxHeight = (80 / 4) * sigGlobalScale;
 
                 const imgW = sigImage.width;
                 const imgH = sigImage.height;
@@ -409,7 +283,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 const targetWidth = imgW * scaleFactor;
                 const targetHeight = imgH * scaleFactor;
 
-                // Center the image within the virtual box (boxWidth x boxHeight)
                 const centeredX = pdfX + (boxWidth - targetWidth) / 2;
                 const centeredY = (pdfY - boxHeight) + (boxHeight - targetHeight) / 2;
 
@@ -420,14 +293,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     height: targetHeight,
                 });
 
-                // Optional Metadata Drawing
                 if (includeMetadata) {
                     const ipPart = attendee.ip || "unknown IP";
                     const rawDeviceInfo = attendee.deviceInfo || attendee.userAgent || "unknown Device";
-                    // Clean up deviceInfo: remove Mozilla/5.0 etc. to save space if needed
                     const devicePart = rawDeviceInfo.includes(')') ? rawDeviceInfo.split(')')[0] + ')' : rawDeviceInfo.substring(0, 30);
 
-                    // Force Latin-only date format (YYYY-MM-DD HH:mm:ss) to avoid Helvetica encoding errors
                     const now = new Date();
                     const datePart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
 
@@ -435,7 +305,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                     page.drawText(metadataStr, {
                         x: centeredX,
-                        y: centeredY - 4, // v0.8.1 Reduced gap
+                        y: centeredY - 4,
                         size: 5,
                         font: font,
                     });
@@ -443,13 +313,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             }
 
             const pdfBytes = await pdfDoc.save();
-            const hashBuffer = await crypto.subtle.digest('SHA-256', pdfBytes as any);
+            // Fix: double cast to bypass Uint8Array -> ArrayBuffer mismatch
+            const hashBuffer = await crypto.subtle.digest('SHA-256', (pdfBytes as unknown) as ArrayBuffer);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const documentHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
             if (meetingId) await updateMeetingHash(meetingId, documentHash);
 
-            const blob = new Blob([pdfBytes as any], { type: 'application/pdf' });
+            const blob = new Blob([(pdfBytes as unknown) as ArrayBuffer], { type: 'application/pdf' });
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
@@ -466,6 +337,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
     return (
         <div
+            ref={containerRef}
             style={{ position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
@@ -513,7 +385,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                 const canvasX = foundCoord.x * scale;
                                 const canvasW = foundCoord.w * scale;
                                 const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                                const sigBoxHeight = (80 / 3) * sigGlobalScale * scale;
+                                const sigBoxHeight = (80 / 4) * sigGlobalScale * scale;
                                 const canvasSigWidth = 80 * sigGlobalScale * scale;
 
                                 const nameCenter = canvasX + (canvasW / 2);
@@ -556,14 +428,14 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
             {showDebug && (
                 <div style={{ padding: '10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', fontSize: '10px', fontFamily: 'monospace', maxHeight: '200px', overflowY: 'auto', position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000, backgroundColor: 'white' }}>
-                    <strong>Name Coordinates Dump (v0.6.0 Row):</strong><br />
+                    <strong>Name Coordinates Dump (v0.8.5):</strong><br />
                     {Object.entries(nameCoordinates).map(([key, val]) => (
                         <div key={key}>
                             "{key}" : X={Math.round(val.x)}, Y={Math.round(val.y)}, Delta={Math.round(val.individualDeltaXPdf || 0)}
                         </div>
                     ))}
                     <hr style={{ margin: '5px 0' }} />
-                    <strong>Raw Text (Y:300-800):</strong><br />
+                    <strong>Raw Text:</strong><br />
                     {rawTextItems.map((item, idx) => (
                         <div key={idx} style={{ color: '#64748b' }}>
                             Y={Math.round(item.transform[5])} X={Math.round(item.transform[4])} | "{item.str}"
@@ -572,9 +444,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 </div>
             )}
 
-            {/* Export Mode Selection Modal (v0.8.0) */}
             {showExportModal && (
-                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, transition: 'all 0.3s ease' }} onClick={() => setShowExportModal(false)}>
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setShowExportModal(false)}>
                     <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '1.25rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', maxWidth: '450px', width: '90%', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} onClick={e => e.stopPropagation()}>
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📄</div>
@@ -586,8 +457,6 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                             <button
                                 onClick={() => handleDownload(false)}
                                 style={{ width: '100%', padding: '1rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(59, 130, 246, 0.3)', transition: 'all 0.2s' }}
-                                onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-2px)'}
-                                onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)'}
                             >
                                 깔끔하게 저장 (서명만)
                                 <div style={{ fontSize: '0.7rem', fontWeight: 'normal', opacity: 0.8, marginTop: '2px' }}>[Enter / Space] 키로 즉시 다운로드</div>
@@ -595,7 +464,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
 
                             <button
                                 onClick={() => handleDownload(true)}
-                                style={{ width: '100%', padding: '0.85rem', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '0.75rem', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer', transition: 'all 0.2s' }}
+                                style={{ width: '100%', padding: '0.85rem', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '0.75rem', fontSize: '0.9rem', fontWeight: '600', cursor: 'pointer' }}
                             >
                                 인증 정보 포함 저장
                             </button>
