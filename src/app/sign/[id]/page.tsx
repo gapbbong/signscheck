@@ -363,7 +363,7 @@ export default function SignPage() {
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.0.2</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.0.3</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
@@ -401,9 +401,9 @@ export default function SignPage() {
                         {(submitted || hasSigned) && namePos && !pdfLoadingError && (
                             <div style={{
                                 position: 'absolute',
-                                // Centering logic with 60x15 slimmer size (v1.0.1)
+                                // Centering logic with 60x15 slimmer size (v1.0.3)
                                 left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * renderScale)}px`,
-                                top: `${(pageHeight - namePos.y) * renderScale - (17 * renderScale)}px`,
+                                top: `${(pageHeight - namePos.y) * renderScale - (12 * renderScale)}px`,
                                 width: `${60 * renderScale}px`,
                                 height: `${15 * renderScale}px`,
                                 pointerEvents: 'none',

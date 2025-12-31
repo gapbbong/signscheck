@@ -30,7 +30,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
     const { showToast } = useNotification();
 
     const [offsetX, setOffsetX] = useState(0);
-    const [offsetY, setOffsetY] = useState(-40);
+    const [offsetY, setOffsetY] = useState(-55); // v1.0.3 Adjusted UP for Host View
     const [sigGlobalScale, setSigGlobalScale] = useState(1.0);
 
     const renderTaskRef = useRef<any>(null);
