@@ -42,6 +42,7 @@ export default function SignPage() {
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+    const thicknessRef = useRef<number>(0); // Store random thickness factor
     const [isDrawing, setIsDrawing] = useState(false);
 
     // Metadata Fetch (IP/Device)
@@ -237,7 +238,16 @@ export default function SignPage() {
         setHasSigned(true); // [New] Mark as signed
         const { offsetX, offsetY } = getCoordinates(e, canvas);
 
-        ctx.lineWidth = 12;
+        // [Modified] Random thickness 50% ~ 90% (v1.4.2)
+        const baseWidth = 12;
+        // If thicknessRef is not set, init it. Ideally satisfy React purity by using a ref init effect, 
+        // but lazy init in handler is also fine or init in a useEffect.
+        // Let's use a ref specifically for this session.
+        if (!thicknessRef.current) {
+            thicknessRef.current = 0.5 + Math.random() * 0.4; // 0.5 ~ 0.9
+        }
+
+        ctx.lineWidth = baseWidth * thicknessRef.current;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
@@ -362,8 +372,11 @@ export default function SignPage() {
                     <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #10b981', padding: '1.5rem', borderRadius: '1rem', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '0.5rem', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)', position: 'relative' }}>
                         <div style={{ fontSize: '2rem' }}>✅</div>
                         <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#065f46' }}>서명이 성공적으로 제출되었습니다!</h2>
+                        <a href="/" target="_blank" style={{ margin: '0.5rem 0', padding: '0.75rem', backgroundColor: '#3b82f6', color: '#fff', borderRadius: '0.5rem', textDecoration: 'none', fontWeight: 'bold', fontSize: '0.95rem', boxShadow: '0 2px 4px rgba(59,130,246,0.3)', transition: 'transform 0.2s', display: 'inline-block' }}>
+                            🚀 나도 받아야 할 서명이 있다면? (무료 시작하기)
+                        </a>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.4.1</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.4.2</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
