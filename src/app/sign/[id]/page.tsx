@@ -40,6 +40,11 @@ export default function SignPage() {
     const [isCanvasLoading, setIsCanvasLoading] = useState(true);
     const [hasStoredSig, setHasStoredSig] = useState(false);
 
+    // Meeting offset state (loaded from Firestore)
+    const [meetingOffsetX, setMeetingOffsetX] = useState(0);
+    const [meetingOffsetY, setMeetingOffsetY] = useState(0);
+    const [meetingScale, setMeetingScale] = useState(1.0);
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const previewCanvasRef = useRef<HTMLCanvasElement>(null);
     const thicknessRef = useRef<number>(0); // Store random thickness factor
@@ -87,6 +92,16 @@ export default function SignPage() {
                                 data.hostName = meetingData.hostName || "담당자";
                                 data.mainPdfUrl = meetingData.pdfUrl || meetingData.fileUrl;
                                 if (!data.attachmentUrl) data.attachmentUrl = meetingData.attachmentUrl;
+
+                                // Load signature offset from meeting data
+                                setMeetingOffsetX(meetingData.signatureOffsetX || 0);
+                                setMeetingOffsetY(meetingData.signatureOffsetY || 0);
+                                setMeetingScale(meetingData.signatureScale || 1.0);
+                                console.log("Loaded signature offset:", {
+                                    offsetX: meetingData.signatureOffsetX || 0,
+                                    offsetY: meetingData.signatureOffsetY || 0,
+                                    scale: meetingData.signatureScale || 1.0
+                                });
 
                                 // Load PDF for preview canvas (Use Proxy to avoid CORS hang)
                                 if (data.mainPdfUrl) {
@@ -417,11 +432,11 @@ export default function SignPage() {
                         {(submitted || hasSigned) && namePos && !pdfLoadingError && (
                             <div style={{
                                 position: 'absolute',
-                                // Centering logic with 60x15 slimmer size (v1.0.3)
-                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * renderScale)}px`,
-                                top: `${(pageHeight - namePos.y) * renderScale - (12 * renderScale)}px`,
-                                width: `${60 * renderScale}px`,
-                                height: `${15 * renderScale}px`,
+                                // Centering logic with 60x15 slimmer size (v1.0.3) + meeting offset applied
+                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * meetingScale * renderScale) + meetingOffsetX}px`,
+                                top: `${(pageHeight - namePos.y) * renderScale - (12 * meetingScale * renderScale) + meetingOffsetY}px`,
+                                width: `${60 * meetingScale * renderScale}px`,
+                                height: `${15 * meetingScale * renderScale}px`,
                                 pointerEvents: 'none',
                                 zIndex: 10
                             }}>

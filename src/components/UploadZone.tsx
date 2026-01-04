@@ -4,9 +4,10 @@ import { useState } from 'react';
 
 interface Props {
     onFileSelected: (file: File) => void;
+    currentStep?: number;
 }
 
-export default function UploadZone({ onFileSelected }: Props) {
+export default function UploadZone({ onFileSelected, currentStep = 1 }: Props) {
     const [isDragging, setIsDragging] = useState(false);
     const [file, setFile] = useState<File | null>(null);
 
@@ -65,9 +66,17 @@ export default function UploadZone({ onFileSelected }: Props) {
                     <div>
                         <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#fff' }}>회의록 PDF를 이곳에 드래그하세요</h3>
                         <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>또는 클릭해서 파일을 선택하세요</p>
-                        <label className="btn-primary" style={{ maxWidth: '200px', margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        <label className="btn-primary" style={{ maxWidth: '200px', margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', animation: currentStep === 1 ? 'pulse-blue 2s infinite' : 'none' }}>
+                            <style>{`
+                                @keyframes pulse-blue {
+                                    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: scale(1); }
+                                    50% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); transform: scale(1.02); }
+                                    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: scale(1); }
+                                }
+                            `}</style>
+                            {currentStep === 1 && <span style={{ fontWeight: 'bold' }}>①</span>}
                             파일 선택
-                            <input type="file" accept=".pdf" onChange={handleFileInput} style={{ display: 'none' }} />
+                            <input id="file-upload-input" type="file" accept=".pdf" onChange={handleFileInput} style={{ display: 'none' }} />
                         </label>
                     </div>
                 )}
@@ -99,32 +108,32 @@ export default function UploadZone({ onFileSelected }: Props) {
                     <div style={stepCardStyle}>
                         <div style={stepBadgeStyle}>3</div>
                         <div>
-                            <div style={stepTitleStyle}>요청 발송</div>
-                            <div style={stepDescStyle}>'X명에게 요청 보내기' 버튼을 누르면 참석자들에게 서명 요청 링크가 나타납니다.</div>
+                            <div style={stepTitleStyle}>미리보기 위치 조정 (중요!)</div>
+                            <div style={stepDescStyle}>화면 중앙 미리보기에서 <b>기본 서명(참석자 이름) 위치</b>를 확인하세요.<br />화살표 키로 위치를 미세조정한 후 <b>'위치 저장'</b>을 꼭 눌러주세요.</div>
                         </div>
                     </div>
 
                     <div style={stepCardStyle}>
                         <div style={stepBadgeStyle}>4</div>
                         <div>
-                            <div style={stepTitleStyle}>복사하여 링크 보내기</div>
-                            <div style={stepDescStyle}>자동으로 가나다순으로 복사됨 (메신저 등으로 참석자별 전송)</div>
+                            <div style={stepTitleStyle}>요청 발송</div>
+                            <div style={stepDescStyle}>'X명에게 요청 보내기' 버튼을 누르면 참석자들에게 보낼 서명 요청 링크가 생성됩니다.</div>
                         </div>
                     </div>
 
                     <div style={stepCardStyle}>
                         <div style={stepBadgeStyle}>5</div>
                         <div>
-                            <div style={stepTitleStyle}>서약 위치 지정</div>
-                            <div style={stepDescStyle}>화면 중앙 미리보기 영역에서 받은 서명을 보고 마우스나 방향키로 위치 조절</div>
+                            <div style={stepTitleStyle}>링크 복사 및 전달</div>
+                            <div style={stepDescStyle}>생성된 링크를 복사하여 카카오톡, 문자 등으로 참석자에게 전달하세요.</div>
                         </div>
                     </div>
 
                     <div style={stepCardStyle}>
                         <div style={stepBadgeStyle}>6</div>
                         <div>
-                            <div style={stepTitleStyle}>SAVE PDF 누르기</div>
-                            <div style={stepDescStyle}>서명 로그도 받을지 선택하여 최종 문서를 저장하세요.</div>
+                            <div style={stepTitleStyle}>최종 PDF 저장</div>
+                            <div style={stepDescStyle}>모든 서명이 완료되면 'SAVE PDF'를 눌러 서명된 문서를 저장하세요.</div>
                         </div>
                     </div>
                 </div>

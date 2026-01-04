@@ -35,11 +35,16 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
             const tag = (e.target as HTMLElement).tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
-            const keyNum = parseInt(e.key);
-            if (!isNaN(keyNum) && keyNum >= 1 && keyNum <= 9) {
-                const targetMeeting = meetings[keyNum - 1];
-                if (targetMeeting) {
-                    onSelectMeeting?.(targetMeeting.id, targetMeeting.fileName);
+            // Use e.code to handle keyboard layout and IME (Korean/English) correctly
+            const code = e.code;
+            if (code.startsWith('Key')) {
+                const charCode = code.charCodeAt(3); // Get char code of the letter after 'Key'
+                if (charCode >= 65 && charCode <= 90) { // A-Z
+                    const index = charCode - 65; // A=0, B=1...
+                    const targetMeeting = meetings[index];
+                    if (targetMeeting) {
+                        onSelectMeeting?.(targetMeeting.id, targetMeeting.fileName);
+                    }
                 }
             }
         };
@@ -121,14 +126,14 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
                                 }}
                             >
                                 {/* Hotkey Badge */}
-                                {index < 9 && (
+                                {index < 26 && (
                                     <div style={{
                                         position: 'absolute',
                                         top: '-6px',
                                         left: '-6px',
                                         width: '18px',
                                         height: '18px',
-                                        backgroundColor: '#3b82f6',
+                                        backgroundColor: '#64748b', // Changed to grey to distinguish
                                         color: '#fff',
                                         fontSize: '11px',
                                         fontWeight: 'bold',
@@ -139,7 +144,7 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
                                         boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
                                         zIndex: 5
                                     }}>
-                                        {index + 1}
+                                        {String.fromCharCode(65 + index)}
                                     </div>
                                 )}
 

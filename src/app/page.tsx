@@ -10,9 +10,9 @@ import StatusBoard from "@/components/StatusBoard";
 import { extractStructuredTextFromPDF, extractNamesFromStructuredData } from '@/lib/pdf-parser';
 import { fetchAttendeesFromSheet, Attendee } from '@/lib/gas-service';
 import { createSignatureRequest } from '@/lib/signature-service';
-import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment, updateMeetingHash } from "@/lib/meeting-service";
+import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment, updateMeetingHash, Meeting } from "@/lib/meeting-service";
 import { useNotification } from '@/lib/NotificationContext';
-import { collection, query, onSnapshot, orderBy, getDocs, where } from 'firebase/firestore';
+import { collection, query, onSnapshot, orderBy, getDocs, where, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
@@ -43,6 +43,7 @@ export default function Home() {
 
   // Session State
   const [meetingId, setMeetingId] = useState<string | null>(null);
+  const [meetingData, setMeetingData] = useState<Meeting | null>(null); // [New] Live Meeting Data
 
   // Attachment State
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
@@ -61,6 +62,32 @@ export default function Home() {
     return () => unsubscribeConfig();
   }, []);
 
+  // Keyboard Shortcuts Listener
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      switch (e.key) {
+        case '1':
+          document.getElementById('file-upload-input')?.click();
+          break;
+        case '2':
+          document.getElementById('btn-save-location')?.click();
+          break;
+        case '3':
+          document.getElementById('btn-send-requests')?.click();
+          break;
+        case '4':
+          document.getElementById('btn-save-pdf')?.click();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
+
   // Firestore Listener with Session Filtering
   useEffect(() => {
     if (!meetingId) {
@@ -68,13 +95,14 @@ export default function Home() {
       return;
     }
 
+    // 1. Requests Listener
     const q = query(
       collection(db, "requests"),
       where("meetingId", "==", meetingId),
       orderBy("createdAt", "desc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribeRequests = onSnapshot(q, (snapshot) => {
       const map: Record<string, { status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string }> = {};
 
       snapshot.forEach(doc => {
@@ -96,10 +124,25 @@ export default function Home() {
       });
       setStatusMap(map);
     }, (error) => {
-      console.error("Firestore Listener Error (Verify Index):", error);
+      console.error("Firestore Requests Listener Error:", error);
     });
 
-    return () => unsubscribe();
+    // 2. [New] Meeting Doc Listener (for Offset Sync)
+    const meetingRef = doc(db, "meetings", meetingId);
+    const unsubscribeMeeting = onSnapshot(meetingRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setMeetingData({ id: docSnap.id, ...data } as Meeting);
+        console.log("Meeting data updated:", data.signatureOffsetX, data.signatureOffsetY);
+      }
+    }, (error) => {
+      console.error("Firestore Meeting Listener Error:", error);
+    });
+
+    return () => {
+      unsubscribeRequests();
+      unsubscribeMeeting();
+    };
   }, [meetingId]);
 
   const visibleAttendees = attendees.map(a => {
@@ -268,6 +311,7 @@ export default function Home() {
       // [New] Create Meeting with PDF URL
       const newMeetingId = await createMeeting(user.uid, user.displayName || "담당자", file.name, pdfUrl);
       setMeetingId(newMeetingId);
+      // setMeetingData will be handled by the onSnapshot listener triggered by setMeetingId
       console.log("New Meeting Created:", newMeetingId);
 
       const structuredItems = await extractStructuredTextFromPDF(file);
@@ -408,7 +452,9 @@ export default function Home() {
     setPdfFile(null);
     setAttachmentFile(null);
     setAttendees([]);
+    setAttendees([]);
     setMeetingId(null);
+    setMeetingData(null);
     setStatusMap({});
   };
 
@@ -615,6 +661,25 @@ export default function Home() {
     );
   }
 
+  // Determine current step for UI guidance
+  let currentStep = 1; // 1. 파일 업로드 (기본값)
+  if (pdfFile) {
+    if (!meetingData || meetingData.signatureOffsetY === undefined || (meetingData.signatureOffsetY === -55 && meetingData.signatureOffsetX === 0)) {
+      currentStep = 2; // 2. 위치 저장
+    } else {
+      const hasSigned = visibleAttendees.some(a => a.status === 'signed');
+      const hasSent = visibleAttendees.some(a => a.status === 'sent');
+
+      if (hasSigned) {
+        currentStep = 4; // 4. PDF 저장
+      } else if (hasSent) {
+        currentStep = 0; // 전송 완료, 서명 대기중 (깜빡임 중단)
+      } else {
+        currentStep = 3; // 3. 요청 발송
+      }
+    }
+  }
+
   return (
     <main style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'hsl(var(--background))', overflow: 'hidden' }}>
       <LoginModal />
@@ -624,7 +689,7 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
-          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v1.4.1</span>
+          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v1.4.3</span>
         </div>
         <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {user && (
@@ -729,6 +794,10 @@ export default function Home() {
                   attendees={visibleAttendees}
                   onConfirm={handleSendRequests}
                   meetingId={meetingId}
+                  initialOffsetX={meetingData?.signatureOffsetX ?? 0}
+                  initialOffsetY={meetingData?.signatureOffsetY ?? -55}
+                  initialScale={meetingData?.signatureScale ?? 1.0}
+                  currentStep={currentStep}
                 />
               </div>
             ) : (
@@ -745,7 +814,7 @@ export default function Home() {
                   </button>
                 </div>
               ) : (
-                <UploadZone onFileSelected={handleFileSelected} />
+                <UploadZone onFileSelected={handleFileSelected} currentStep={currentStep} />
               )
             )}
 
@@ -782,6 +851,7 @@ export default function Home() {
             config={config}
             hostUid={user?.uid}
             onLoadTemplate={handleLoadTemplate}
+            currentStep={currentStep}
           />
         </aside>
 

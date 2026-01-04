@@ -25,9 +25,10 @@ interface Props {
     config?: AppConfig | null;
     hostUid?: string;
     onLoadTemplate?: (attendees: { name: string; phone: string | null }[]) => void;
+    currentStep?: number;
 }
 
-export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, onSelectAll, onDeselectAll, onSend, sendCount = 0, config, hostUid, onLoadTemplate }: Props) {
+export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, onSelectAll, onDeselectAll, onSend, sendCount = 0, config, hostUid, onLoadTemplate, currentStep = 0 }: Props) {
     const isNewMeetingDisabled = config?.allowNewMeetings === false;
     const [showBulk, setShowBulk] = useState(false);
     const [bulkText, setBulkText] = useState("");
@@ -119,6 +120,15 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                 .custom-scroll {
                     scrollbar-width: thin;
                     scrollbar-color: #475569 rgba(15, 23, 42, 0.5);
+                }
+                
+                @keyframes pulse-blue {
+                    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: scale(1); }
+                    50% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); transform: scale(1.02); }
+                    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: scale(1); }
+                }
+                .btn-pulse {
+                    animation: pulse-blue 2s infinite;
                 }
             `}</style>
 
@@ -405,18 +415,21 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
             {onSend && (
                 <div style={{ padding: '1rem', borderTop: '1px solid hsla(var(--glass-border) / 0.5)' }}>
                     <button
+                        id="btn-send-requests"
                         onClick={onSend}
                         disabled={sendCount === 0 || isNewMeetingDisabled}
-                        className="btn-primary"
+                        className={currentStep === 3 ? "btn-primary btn-pulse" : "btn-primary"}
                         style={{
                             width: '100%',
                             fontSize: '1rem',
                             padding: '0.8rem',
                             opacity: (sendCount === 0 || isNewMeetingDisabled) ? 0.5 : 1,
-                            cursor: (sendCount === 0 || isNewMeetingDisabled) ? 'not-allowed' : 'pointer'
+                            cursor: (sendCount === 0 || isNewMeetingDisabled) ? 'not-allowed' : 'pointer',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
                         }}
                     >
-                        🚀 {isNewMeetingDisabled ? "제한됨" : (sendCount > 0 ? `${sendCount}명에게 요청 보내기` : '요청 보내기')}
+                        {currentStep === 3 && <span style={{ fontWeight: 'bold' }}>③</span>}
+                        <span>🚀 {isNewMeetingDisabled ? "제한됨" : (sendCount > 0 ? `${sendCount}명에게 요청 보내기` : '요청 보내기')}</span>
                     </button>
                     {sendCount > 0 && (
                         <div style={{ fontSize: '0.7rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>

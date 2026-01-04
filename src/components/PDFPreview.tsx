@@ -11,27 +11,39 @@ import {
     PDFTextItem
 } from '@/lib/pdf-analyzer';
 import { useNotification } from '@/lib/NotificationContext';
-import { updateMeetingHash } from '@/lib/meeting-service';
+import { updateMeetingHash, updateMeetingSignatureOffset } from '@/lib/meeting-service';
 
 interface Props {
     file: File;
     attendees: (any & { id?: string; status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string })[];
     onConfirm?: () => void;
     meetingId?: string | null;
+    initialOffsetX?: number;
+    initialOffsetY?: number;
+    initialScale?: number;
+    currentStep?: number; // [New]
 }
 
-export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Props) {
+export default function PDFPreview({ file, attendees, onConfirm, meetingId, initialOffsetX = 0, initialOffsetY = -55, initialScale = 1.0, currentStep = 0 }: Props) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [scale, setScale] = useState(1.0);
     const [rotation, setRotation] = useState(0);
     const [isDownloading, setIsDownloading] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
+    const [showPositionConfirmModal, setShowPositionConfirmModal] = useState(false);
+    const [isSavingOffset, setIsSavingOffset] = useState(false);
     const { showToast } = useNotification();
 
-    const [offsetX, setOffsetX] = useState(0);
-    const [offsetY, setOffsetY] = useState(-55); // v1.0.3 Adjusted UP for Host View
-    const [sigGlobalScale, setSigGlobalScale] = useState(1.0);
+    const [offsetX, setOffsetX] = useState(initialOffsetX);
+    const [offsetY, setOffsetY] = useState(initialOffsetY);
+    const [sigGlobalScale, setSigGlobalScale] = useState(initialScale);
+
+    useEffect(() => {
+        setOffsetX(initialOffsetX);
+        setOffsetY(initialOffsetY);
+        setSigGlobalScale(initialScale);
+    }, [initialOffsetX, initialOffsetY, initialScale]);
 
     const renderTaskRef = useRef<any>(null);
 
@@ -125,8 +137,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 }
 
                 setNameCoordinates(coords);
-                setOffsetX(0);
-                setOffsetY(0);
+                setNameCoordinates(coords);
+                // DO NOT Reset offsets here - utilize props or kept state
+                // setOffsetX(0); 
+                // setOffsetY(0);
 
             } catch (e) {
                 console.error("Auto-analysis failed", e);
@@ -335,6 +349,25 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
         }
     };
 
+    const handleConfirmPosition = async () => {
+        if (!meetingId) {
+            showToast("미팅 ID가 없습니다.", "error");
+            return;
+        }
+
+        setIsSavingOffset(true);
+        try {
+            await updateMeetingSignatureOffset(meetingId, offsetX, offsetY, sigGlobalScale);
+            showToast("서명 위치가 저장되었습니다! 참석자들이 받는 링크에도 동일하게 적용됩니다.", "success");
+            setShowPositionConfirmModal(false);
+        } catch (error) {
+            console.error("Failed to save offset:", error);
+            showToast("위치 저장에 실패했습니다.", "error");
+        } finally {
+            setIsSavingOffset(false);
+        }
+    };
+
     return (
         <div
             ref={containerRef}
@@ -343,21 +376,45 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
         >
-            <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <div style={{ display: 'flex', gap: '5px', background: 'rgba(255,255,255,0.8)', padding: '4px', borderRadius: '4px', backdropFilter: 'blur(4px)' }}>
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155' }}>↔ X:</span>
-                    <input type="number" value={offsetX} onChange={(e) => setOffsetX(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>↕ Y:</span>
-                    <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
-                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>🔍 Size:</span>
-                    <input type="number" step="0.05" min="0.1" max="3" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+            <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                <div style={{ fontSize: '11px', color: '#475569', background: 'rgba(255,255,255,0.95)', padding: '6px 8px', borderRadius: '4px', fontWeight: '600', backdropFilter: 'blur(4px)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                    ⌨️ 화살표 키로 위치 조정 → 확인 후 "위치 저장" 클릭
                 </div>
-                <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↻ Rotate</button>
-                <button onClick={() => setPositions({})} style={{ backgroundColor: 'rgba(59,130,246,0.8)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↺ Reset</button>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '5px', background: 'rgba(255,255,255,0.8)', padding: '4px', borderRadius: '4px', backdropFilter: 'blur(4px)' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155' }}>↔ X:</span>
+                        <input type="number" value={offsetX} onChange={(e) => setOffsetX(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>↕ Y:</span>
+                        <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>🔍 Size:</span>
+                        <input type="number" step="0.05" min="0.1" max="3" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
+                    </div>
+                    <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↻ Rotate</button>
+                    <button onClick={() => setPositions({})} style={{ backgroundColor: 'rgba(59,130,246,0.8)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↺ Reset</button>
+                    <button
+                        id="btn-save-location"
+                        onClick={() => setShowPositionConfirmModal(true)}
+                        disabled={!meetingId}
+                        className={currentStep === 2 ? "btn-pulse" : ""}
+                        style={{ backgroundColor: meetingId ? (currentStep === 2 ? '#3b82f6' : '#10b981') : '#94a3b8', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.8rem', cursor: meetingId ? 'pointer' : 'not-allowed', fontSize: '0.8rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
+                    >
+                        {currentStep === 2 && <span style={{ fontWeight: 'bold', fontSize: '0.9rem', marginRight: '2px' }}>②</span>}
+                        {isSavingOffset ? "저장됨!" : "위치 저장"}
+                    </button>
+                </div>
             </div>
 
             <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
-                <button onClick={() => setShowExportModal(true)} disabled={isDownloading} style={{ backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.4rem 1rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}>{isDownloading ? 'Processing...' : '💾 Save PDF'}</button>
+                <button
+                    id="btn-save-pdf"
+                    onClick={() => setShowExportModal(true)}
+                    disabled={isDownloading}
+                    className={currentStep === 4 ? "btn-pulse" : ""}
+                    style={{ backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.4rem 1rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                >
+                    {currentStep === 4 && <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>④</span>}
+                    {isDownloading ? 'Processing...' : 'Save PDF'}
+                </button>
             </div>
 
             <div style={{ position: 'relative', margin: '0 auto', width: 'fit-content' }}>
@@ -374,9 +431,10 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                     transformOrigin: 'top left'
                 }}>
                     <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'auto' }}>
-                        {signedAttendees.map((attendee, index) => {
+                        {attendees.map((attendee, index) => {
                             const uniqueId = attendee.id || attendee.phone || `temp-${attendee.name}`;
                             const foundCoord = nameCoordinates[attendee.name];
+                            const hasSigned = attendee.status === 'signed' && attendee.signatureUrl;
 
                             let initLeft = 50 + (index % 4) * 150 + offsetX;
                             let initTop = 100 + Math.floor(index / 4) * 60 + offsetY;
@@ -417,7 +475,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                                     }}
                                 >
                                     <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'transparent'}>
-                                        <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
+                                        {hasSigned ? (
+                                            <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
+                                        ) : (
+                                            <div style={{ fontSize: `${12 * sigGlobalScale * scale}px`, fontWeight: 'bold', color: '#94a3b8', fontFamily: 'Arial, sans-serif', whiteSpace: 'nowrap' }}>
+                                                {attendee.name}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -480,10 +544,53 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId }: Pr
                 </div>
             )}
 
+            {showPositionConfirmModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }} onClick={() => setShowPositionConfirmModal(false)}>
+                    <div style={{ backgroundColor: '#fff', padding: '2rem', borderRadius: '1.25rem', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', maxWidth: '450px', width: '90%', display: 'flex', flexDirection: 'column', gap: '1.5rem', animation: 'popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ textAlign: 'center' }}>
+                            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>📍</div>
+                            <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1e293b', marginBottom: '0.5rem' }}>서명 위치 확인</h3>
+                            <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: '1.6' }}>현재 설정된 서명 위치가 정확한가요?<br /><b>이 위치가 참석자들에게도 동일하게 적용됩니다.</b></p>
+                            <div style={{ marginTop: '1rem', padding: '0.75rem', backgroundColor: '#f1f5f9', borderRadius: '0.5rem', fontSize: '0.85rem', color: '#475569' }}>
+                                <div>X 오프셋: <b>{offsetX}px</b></div>
+                                <div>Y 오프셋: <b>{offsetY}px</b></div>
+                                <div>크기: <b>{sigGlobalScale}x</b></div>
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <button
+                                onClick={handleConfirmPosition}
+                                disabled={isSavingOffset}
+                                style={{ width: '100%', padding: '1rem', backgroundColor: isSavingOffset ? '#94a3b8' : '#10b981', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1rem', fontWeight: 'bold', cursor: isSavingOffset ? 'not-allowed' : 'pointer', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.3)', transition: 'all 0.2s' }}
+                            >
+                                {isSavingOffset ? '저장 중...' : '✓ 예, 정확합니다 (저장)'}
+                            </button>
+
+                            <button
+                                onClick={() => setShowPositionConfirmModal(false)}
+                                disabled={isSavingOffset}
+                                style={{ width: '100%', padding: '0.85rem', backgroundColor: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '0.75rem', fontSize: '0.9rem', fontWeight: '600', cursor: isSavingOffset ? 'not-allowed' : 'pointer' }}
+                            >
+                                아니오, 더 조정하겠습니다
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <style jsx>{`
                 @keyframes popIn {
                     from { transform: scale(0.9); opacity: 0; }
                     to { transform: scale(1); opacity: 1; }
+                }
+                @keyframes pulse-blue {
+                    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: scale(1); }
+                    50% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); transform: scale(1.05); }
+                    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: scale(1); }
+                }
+                .btn-pulse {
+                    animation: pulse-blue 2s infinite;
                 }
             `}</style>
         </div>

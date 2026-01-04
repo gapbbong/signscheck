@@ -11,6 +11,9 @@ export interface Meeting {
     attachmentName?: string; // [New]
     hostName?: string; // [New]
     documentHash?: string; // [Security] SHA-256 hash of final signed PDF
+    signatureOffsetX?: number; // [New] Signature position offset X
+    signatureOffsetY?: number; // [New] Signature position offset Y
+    signatureScale?: number; // [New] Signature scale
     createdAt: any;
 }
 
@@ -88,6 +91,26 @@ export async function updateMeetingHash(meetingId: string, documentHash: string)
         console.log("Document hash saved:", documentHash.substring(0, 16) + "...");
     } catch (error) {
         console.error("Error updating document hash:", error);
+    }
+}
+
+export async function updateMeetingSignatureOffset(
+    meetingId: string,
+    offsetX: number,
+    offsetY: number,
+    scale: number
+) {
+    try {
+        const docRef = doc(db, "meetings", meetingId);
+        await updateDoc(docRef, {
+            signatureOffsetX: offsetX,
+            signatureOffsetY: offsetY,
+            signatureScale: scale
+        });
+        console.log("Signature offset saved:", { offsetX, offsetY, scale });
+    } catch (error) {
+        console.error("Error updating signature offset:", error);
+        throw error;
     }
 }
 
