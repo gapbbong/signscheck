@@ -12,6 +12,11 @@
 
 # testing
 /coverage
+/test-results
+/playwright-report
+
+# temp files
+*.tmp
 
 # next.js
 /.next/
