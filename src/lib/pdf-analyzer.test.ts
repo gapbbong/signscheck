@@ -85,6 +85,30 @@ describe('PDF Analyzer Logic', () => {
             expect(pos3.x).toBe(450);
             expect(pos3.delta).toBe(120); // Should pick the closest header delta (440 is closest to 450)
         });
+        it('should anchor to the actual signature cell (exact delta + cell width) when present', () => {
+            // Real-grid geometry: name then "서명" cell then next column's name.
+            const rows = {
+                619: [
+                    { str: '류기현', transform: [1, 0, 0, 1, 216, 619], width: 36 },
+                    { str: '서명', transform: [1, 0, 0, 1, 275, 619], width: 24 },
+                    { str: '최지은', transform: [1, 0, 0, 1, 322, 619], width: 36 },
+                    { str: '서명', transform: [1, 0, 0, 1, 382, 619], width: 24 },
+                ]
+            };
+            const pos = (findNamePosition('류기현', rows as any, []) as unknown) as { x: number, delta: number, w: number, sigWidth: number };
+            // name center = (216 + 252)/2 = 234; signing area centered ~281,
+            // so delta ~= 47 (NOT the 140 default)
+            expect(pos.delta).toBeGreaterThan(40);
+            expect(pos.delta).toBeLessThan(55);
+            // signing area spans name-end..cell-border: narrower than old fixed 80
+            // but wider than just the "서명" label half
+            expect(pos.sigWidth).toBeGreaterThan(50);
+            expect(pos.sigWidth).toBeLessThan(75);
+            // box center = nameCenter + delta should land on the signing area (~281)
+            const nameCenter = pos.x + pos.w / 2;
+            expect(nameCenter + pos.delta).toBeGreaterThan(272);
+            expect(nameCenter + pos.delta).toBeLessThan(292);
+        });
         it('should find the correct position for a name using fuzzy matching', () => {
             const rows = {
                 500: [

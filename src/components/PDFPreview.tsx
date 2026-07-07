@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, ReactNode } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -22,9 +22,10 @@ interface Props {
     initialOffsetY?: number;
     initialScale?: number;
     currentStep?: number; // [New]
+    leftColumnFooter?: ReactNode; // [New] rendered at the bottom of the left control column (e.g. attachment dropzone)
 }
 
-export default function PDFPreview({ file, attendees, onConfirm, meetingId, initialOffsetX = 0, initialOffsetY = -55, initialScale = 1.0, currentStep = 0 }: Props) {
+export default function PDFPreview({ file, attendees, onConfirm, meetingId, initialOffsetX = 0, initialOffsetY = -4, initialScale = 1.0, currentStep = 0, leftColumnFooter }: Props) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [scale, setScale] = useState(1.0);
@@ -47,7 +48,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
 
     const renderTaskRef = useRef<any>(null);
 
-    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }>>({});
+    const [nameCoordinates, setNameCoordinates] = useState<Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number, sigWidthPdf?: number }>>({});
     const [headerCoords, setHeaderCoords] = useState<{ str: string, x: number, y: number, w: number, h: number, pageHeight: number, type: 'name' | 'sign' }[]>([]);
     const [displayScale, setDisplayScale] = useState(1);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -121,17 +122,18 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 const rows = groupItemsIntoRows(items);
                 const headerDeltas = detectHeaderDeltas(items);
 
-                const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number }> = {};
+                const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number, sigWidthPdf?: number }> = {};
 
                 for (const attendee of attendees) {
-                    const foundPos = (findNamePosition(attendee.name, rows, headerDeltas) as unknown) as { x: number, y: number, w: number, delta: number };
+                    const foundPos = (findNamePosition(attendee.name, rows, headerDeltas) as unknown) as { x: number, y: number, w: number, delta: number, sigWidth?: number };
                     if (foundPos) {
                         coords[attendee.name] = {
                             x: foundPos.x,
                             y: foundPos.y,
                             w: foundPos.w,
                             pageHeight: unscaledViewport.height,
-                            individualDeltaXPdf: foundPos.delta
+                            individualDeltaXPdf: foundPos.delta,
+                            sigWidthPdf: foundPos.sigWidth
                         };
                     }
                 }
@@ -205,6 +207,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
     }, [pdfDoc, rotation]);
 
     const signedAttendees = attendees.filter(a => a.status === 'signed' && a.signatureUrl);
+
+    // Fallback signature-box width for attendees whose name isn't found in the
+    // document (e.g. manually added). Use the average of the detected cells so
+    // their box matches the rest instead of the oversized default.
+    const detectedSigWidths = Object.values(nameCoordinates)
+        .map(c => c.sigWidthPdf)
+        .filter((w): w is number => typeof w === 'number');
+    const fallbackSigWidth = detectedSigWidths.length
+        ? Math.round(detectedSigWidths.reduce((a, b) => a + b, 0) / detectedSigWidths.length)
+        : 60;
+
     const [positions, setPositions] = useState<Record<string, { x: number, y: number }>>({});
     const dragItem = useRef<{ id: string, startX: number, startY: number, initX: number, initY: number } | null>(null);
 
@@ -260,6 +273,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 const sigImage = await pdfDoc.embedPng(sigImageBytes);
 
                 const foundCoord = nameCoordinates[attendee.name];
+                // Match the preview: use the detected signature cell width when available.
+                const baseBoxW = foundCoord?.sigWidthPdf ?? fallbackSigWidth;
                 const getInitPos = () => {
                     if (foundCoord && scale) {
                         const canvasX = foundCoord.x * scale;
@@ -269,8 +284,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                         const nameCenter = canvasX + (canvasW / 2);
                         const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
 
-                        const canvasSigWidth = 80 * sigGlobalScale * scale;
-                        const sigBoxHeight = (80 / 4) * sigGlobalScale * scale;
+                        const canvasSigWidth = baseBoxW * sigGlobalScale * scale;
+                        const sigBoxHeight = (baseBoxW / 2.2) * sigGlobalScale * scale;
 
                         return {
                             x: signTargetCenter - (canvasSigWidth / 2) + offsetX,
@@ -287,8 +302,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 const pdfX = pos.x / scale;
                 const pdfY = pageHeight - (pos.y / scale);
 
-                const boxWidth = 80 * sigGlobalScale;
-                const boxHeight = (80 / 4) * sigGlobalScale;
+                const boxWidth = baseBoxW * sigGlobalScale;
+                const boxHeight = (baseBoxW / 2.2) * sigGlobalScale;
 
                 const imgW = sigImage.width;
                 const imgH = sigImage.height;
@@ -371,53 +386,64 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
     return (
         <div
             ref={containerRef}
-            style={{ position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}
+            style={{ position: 'relative', display: 'flex', gap: '1rem', alignItems: 'stretch', justifyContent: 'flex-start' }}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
         >
-            <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 10, display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
-                <div style={{ fontSize: '11px', color: '#475569', background: 'rgba(255,255,255,0.95)', padding: '6px 8px', borderRadius: '4px', fontWeight: '600', backdropFilter: 'blur(4px)', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                    ⌨️ 화살표 키로 위치 조정 → 확인 후 "위치 저장" 클릭
+            {/* CONTROL COLUMN (right of the document) */}
+            <div style={{ order: 2, width: '140px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ fontSize: '11px', color: '#cbd5e1', background: 'rgba(30,41,59,0.6)', border: '1px solid #334155', padding: '8px 10px', borderRadius: '6px', lineHeight: 1.6 }}>
+                    ⌨️ <b>화살표 키</b>로 서명 위치를 미세조정한 뒤 <b>"위치 저장"</b>을 누르세요.<br />🖱️ 드래그로도 옮길 수 있습니다.
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', gap: '5px', background: 'rgba(255,255,255,0.8)', padding: '4px', borderRadius: '4px', backdropFilter: 'blur(4px)' }}>
-                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155' }}>↔ X:</span>
-                        <input type="number" value={offsetX} onChange={(e) => setOffsetX(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
-                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>↕ Y:</span>
-                        <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
-                        <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#334155', marginLeft: '2px' }}>🔍 Size:</span>
-                        <input type="number" step="0.05" min="0.1" max="3" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '45px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '2px' }} />
-                    </div>
-                    <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ backgroundColor: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↻ Rotate</button>
-                    <button onClick={() => setPositions({})} style={{ backgroundColor: 'rgba(59,130,246,0.8)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.6rem', cursor: 'pointer', fontSize: '0.8rem', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px' }}>↺ Reset</button>
-                    <button
-                        id="btn-save-location"
-                        onClick={() => setShowPositionConfirmModal(true)}
-                        disabled={!meetingId}
-                        className={currentStep === 2 ? "btn-pulse" : ""}
-                        style={{ backgroundColor: meetingId ? (currentStep === 2 ? '#3b82f6' : '#10b981') : '#94a3b8', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.3rem 0.8rem', cursor: meetingId ? 'pointer' : 'not-allowed', fontSize: '0.8rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
-                    >
-                        {currentStep === 2 && <span style={{ fontWeight: 'bold', fontSize: '0.9rem', marginRight: '2px' }}>②</span>}
-                        {isSavingOffset ? "저장됨!" : "위치 저장"}
-                    </button>
-                </div>
-            </div>
 
-            <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(255,255,255,0.95)', padding: '8px 10px', borderRadius: '6px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>↔ X</span>
+                        <input type="number" value={offsetX} onChange={(e) => setOffsetX(Number(e.target.value))} style={{ width: '64px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '3px', padding: '2px 4px' }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>↕ Y</span>
+                        <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '64px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '3px', padding: '2px 4px' }} />
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>🔍 Size</span>
+                        <input type="number" step="0.05" min="0.1" max="3" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '64px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '3px', padding: '2px 4px' }} />
+                    </div>
+                </div>
+
+                <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ width: '100%', backgroundColor: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: '6px', padding: '0.45rem', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>↻ 회전</button>
+                <button onClick={() => setPositions({})} style={{ width: '100%', backgroundColor: 'rgba(59,130,246,0.85)', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.45rem', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>↺ 초기화</button>
+                <button
+                    id="btn-save-location"
+                    onClick={() => setShowPositionConfirmModal(true)}
+                    disabled={!meetingId}
+                    className={currentStep === 2 ? "btn-pulse" : ""}
+                    style={{ width: '100%', backgroundColor: meetingId ? (currentStep === 2 ? '#3b82f6' : '#10b981') : '#94a3b8', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.5rem', cursor: meetingId ? 'pointer' : 'not-allowed', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
+                >
+                    {currentStep === 2 && <span style={{ marginRight: '4px' }}>②</span>}
+                    {isSavingOffset ? "저장됨!" : "위치 저장"}
+                </button>
                 <button
                     id="btn-save-pdf"
                     onClick={() => setShowExportModal(true)}
                     disabled={isDownloading}
                     className={currentStep === 4 ? "btn-pulse" : ""}
-                    style={{ backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.4rem 1rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', backdropFilter: 'blur(4px)', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)', display: 'flex', alignItems: 'center', gap: '6px' }}
+                    style={{ width: '100%', backgroundColor: isDownloading ? '#94a3b8' : '#22c55e', color: '#fff', border: 'none', borderRadius: '6px', padding: '0.5rem', cursor: isDownloading ? 'not-allowed' : 'pointer', fontSize: '0.85rem', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}
                 >
-                    {currentStep === 4 && <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>④</span>}
-                    {isDownloading ? 'Processing...' : 'Save PDF'}
+                    {currentStep === 4 && <span style={{ marginRight: '4px' }}>④</span>}
+                    {isDownloading ? 'Processing...' : '💾 Save PDF'}
                 </button>
+
+                {leftColumnFooter && (
+                    <div style={{ paddingTop: '0.25rem' }}>
+                        {leftColumnFooter}
+                    </div>
+                )}
             </div>
 
-            <div style={{ position: 'relative', margin: '0 auto', width: 'fit-content' }}>
+            {/* DOCUMENT (left) */}
+            <div style={{ order: 1, position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', alignSelf: 'flex-start', width: 'fit-content' }}>
                 <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
 
                 <div style={{
@@ -439,12 +465,16 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                             let initLeft = 50 + (index % 4) * 150 + offsetX;
                             let initTop = 100 + Math.floor(index / 4) * 60 + offsetY;
 
+                            // Base box width: the detected signature cell width when available,
+                            // otherwise a sensible default. Ensures the box matches the real cell.
+                            const baseBoxW = foundCoord?.sigWidthPdf ?? fallbackSigWidth;
+
                             if (foundCoord && scale) {
                                 const canvasX = foundCoord.x * scale;
                                 const canvasW = foundCoord.w * scale;
                                 const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                                const sigBoxHeight = (80 / 4) * sigGlobalScale * scale;
-                                const canvasSigWidth = 80 * sigGlobalScale * scale;
+                                const sigBoxHeight = (baseBoxW / 2.2) * sigGlobalScale * scale;
+                                const canvasSigWidth = baseBoxW * sigGlobalScale * scale;
 
                                 const nameCenter = canvasX + (canvasW / 2);
                                 const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
@@ -463,8 +493,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                                         position: 'absolute',
                                         top: `${pos.y}px`,
                                         left: `${pos.x}px`,
-                                        width: `${80 * sigGlobalScale * scale}px`,
-                                        height: `${(80 / 3) * sigGlobalScale * scale}px`,
+                                        width: `${baseBoxW * sigGlobalScale * scale}px`,
+                                        height: `${(baseBoxW / 2.2) * sigGlobalScale * scale}px`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
@@ -474,7 +504,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                                         pointerEvents: 'auto'
                                     }}
                                 >
-                                    <div style={{ border: '2px solid transparent', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(59, 130, 246, 0.5)'} onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = 'transparent'}>
+                                    <div style={{ border: hasSigned ? '2px solid transparent' : '1px dashed rgba(59, 130, 246, 0.7)', borderRadius: '4px', transition: 'border 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.border = '2px solid rgba(59, 130, 246, 0.9)'; }} onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.border = hasSigned ? '2px solid transparent' : '1px dashed rgba(59, 130, 246, 0.7)'; }}>
                                         {hasSigned ? (
                                             <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
                                         ) : (

@@ -51,8 +51,39 @@ export async function extractStructuredTextFromPDF(file: File): Promise<PDFTextI
 /**
  * Spatial Name Extractor (Grid Search)
  */
+// Signature-cell markers. A name is almost always the cell immediately to the
+// left of one of these on the same row, which is a far more reliable signal
+// than header labels (which vary wildly across documents, e.g. "참 석 자 명 단").
+const SIGN_CELL_MARKERS = new Set([
+    '서명', '서명란', '서명본', '서명본란', '(인)', '인', '인장', '사인', '싸인'
+]);
+
 export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
     const potentialNames = new Set<string>();
+
+    // 0. Primary Strategy: Signature-Adjacency.
+    // For each signature cell, take the nearest text cell to its left on the
+    // same row and treat that as the participant's name. This ties detection
+    // directly to the signature grid and ignores body text entirely.
+    const signItems = items.filter(item => SIGN_CELL_MARKERS.has(item.str.replace(/\s+/g, '')));
+    signItems.forEach(sign => {
+        const leftCell = items
+            .filter(item =>
+                item.page === sign.page &&
+                Math.abs(item.y - sign.y) < 8 &&           // same row
+                item.x < sign.x &&                         // to the left
+                (sign.x - item.x) < 120 &&                 // within one cell
+                !SIGN_CELL_MARKERS.has(item.str.replace(/\s+/g, ''))
+            )
+            .sort((a, b) => b.x - a.x)[0];                 // closest to the signature
+
+        if (leftCell) {
+            const clean = leftCell.str.replace(/\s+/g, '');
+            if (clean.length >= 2 && clean.length <= 4) {
+                extractNamesFromRawString(leftCell.str).forEach(n => potentialNames.add(n));
+            }
+        }
+    });
 
     // 1. Find ALL Anchors (headers like 교사명, 성명, etc.)
     const anchors = items.filter(item =>
@@ -70,7 +101,9 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
         return a.x - b.x;
     });
 
-    if (anchors.length > 0) {
+    // Only fall back to header-anchor column scanning if signature-adjacency
+    // found nothing usable.
+    if (potentialNames.size === 0 && anchors.length > 0) {
         anchors.forEach(anchor => {
             // Find items below this specific anchor (same column)
             // Look for items with similar X coordinate (+/- 60px) and below it (Y increases upward in some systems, but pdf.js usually has Y increasing UP)
@@ -103,8 +136,10 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
         });
     }
 
-    // 2. Fallback: If still too few, try to look for name-like patterns globally but with stricter filtering
-    if (potentialNames.size < 5) {
+    // 2. Last-resort Fallback: only when nothing at all was found. Scanning every
+    // short Korean word globally is noisy (it grabs body text), so it must never
+    // run once a more reliable strategy has produced names.
+    if (potentialNames.size === 0) {
         // [New] Sort items globally for fallback (Top-down, then Left-right)
         const sortedItems = [...items].sort((a, b) => {
             if (a.page !== b.page) return a.page - b.page;
@@ -123,7 +158,7 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
     // Comprehensive Stopwords Filter for School/Official Documents
     const exactStopWords = new Set([
         "참석자", "참석", "회의록", "위원회", "페이지", "입니다", "합니다", "결재", "담당",
-        "회의실", "위원장", "발언자", "불참자", "진행자", "기록자", "서기",
+        "회의실", "위원", "위원장", "부위원장", "외부위원", "간사", "발언자", "불참자", "진행자", "기록자", "서기",
         "회장", "총무", "감사", "교장", "교감", "부장", "선생님", "교사",
         "학교", "학년", "번호", "날짜", "일시", "장소", "안건", "내용", "결과",
         "없음", "이상", "개회", "폐회", "동의", "재청", "가결", "부결",

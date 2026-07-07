@@ -19,6 +19,11 @@ export interface HeaderDelta {
 export const NAME_KEYWORDS = ['교사명', '성명', '이름', '교사', '성함', '성 명', '참석자명', '참석자', '이 름'];
 export const SIGN_KEYWORDS = ['서명', '서명본', '(인)', '인장', '서명란', '서 명', '비고', '사인', '확인'];
 
+// Tight set of markers that denote an actual signature cell (normalized form,
+// so "(인)" -> "인" and "서 명" -> "서명"). Used to anchor the signature box to
+// the real cell to the right of a name, rather than guessing a horizontal delta.
+const SIGN_CELL_MARKERS = new Set(['서명', '서명란', '서명본', '인', '인장', '사인', '싸인']);
+
 /**
  * Normalizes a string for matching (removes special chars)
  */
@@ -88,7 +93,7 @@ export function findNamePosition(
     const cleanTarget = normalizeText(targetName);
     const namePattern = new RegExp(cleanTarget.split('').join('.*'));
 
-    let foundPos: { x: number, y: number, w: number, delta: number } | null = null;
+    let foundPos: { x: number, y: number, w: number, delta: number, sigWidth?: number } | null = null;
 
     Object.entries(rows).forEach(([_, rowItems]) => {
         const rowStr = rowItems.map(i => i.str).join('');
@@ -102,9 +107,10 @@ export function findNamePosition(
             const minX = Math.min(...targetItems.map(i => i.transform[4]));
             const maxX = Math.max(...targetItems.map(i => i.transform[4] + (i.width || 0)));
             const w = maxX - minX;
+            const nameCenter = (minX + maxX) / 2;
             const avgY = targetItems.reduce((acc, i) => acc + i.transform[5], 0) / targetItems.length;
 
-            // Use closest header delta
+            // Use closest header delta as a fallback estimate.
             let finalDelta = 140;
             if (headerDeltas.length > 0) {
                 const bestH = headerDeltas.reduce((prev, curr) =>
@@ -113,7 +119,32 @@ export function findNamePosition(
                 finalDelta = bestH.deltaX;
             }
 
-            foundPos = { x: minX, y: avgY, w: w, delta: finalDelta };
+            // Preferred: anchor to the actual signature cell immediately to the
+            // right of the name on this row. This gives an exact horizontal
+            // offset and a cell width, so the signature box lands inside the
+            // real box instead of an oversized guessed area.
+            let sigWidth: number | undefined;
+            const rowSorted = [...rowItems].sort((a, b) => a.transform[4] - b.transform[4]);
+            const signItem = rowSorted.find(i =>
+                SIGN_CELL_MARKERS.has(normalizeText(i.str)) && i.transform[4] > maxX - 5
+            );
+            if (signItem) {
+                const signStart = signItem.transform[4];
+                const signEnd = signStart + (signItem.width || 24);
+                const rightNeighbor = rowSorted.find(i => i.transform[4] > signEnd + 1);
+                // Signing area spans the whole empty region from the end of the
+                // name to the cell's right border (not just the "서명" label half),
+                // which matches the visible box a person signs in.
+                const leftBorder = maxX;
+                const rightBorder = rightNeighbor
+                    ? (signEnd + rightNeighbor.transform[4]) / 2
+                    : signEnd + 8; // last column: small pad, don't overshoot into empty space
+                const cellCenter = (leftBorder + rightBorder) / 2;
+                finalDelta = cellCenter - nameCenter;
+                sigWidth = rightBorder - leftBorder;
+            }
+
+            foundPos = { x: minX, y: avgY, w: w, delta: finalDelta, sigWidth };
         }
     });
 

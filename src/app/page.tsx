@@ -65,6 +65,7 @@ export default function Home() {
   // Keyboard Shortcuts Listener
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
 
@@ -664,7 +665,7 @@ export default function Home() {
   // Determine current step for UI guidance
   let currentStep = 1; // 1. 파일 업로드 (기본값)
   if (pdfFile) {
-    if (!meetingData || meetingData.signatureOffsetY === undefined || (meetingData.signatureOffsetY === -55 && meetingData.signatureOffsetX === 0)) {
+    if (!meetingData || meetingData.signatureOffsetY === undefined || (meetingData.signatureOffsetY === -4 && meetingData.signatureOffsetX === 0)) {
       currentStep = 2; // 2. 위치 저장
     } else {
       const hasSigned = visibleAttendees.some(a => a.status === 'signed');
@@ -680,17 +681,74 @@ export default function Home() {
     }
   }
 
+  // Attachment dropzone — rendered at the bottom of the preview's left control column.
+  const attachmentDropzone = (!config || config.allowAttachments) ? (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      style={{
+        border: `2px dashed ${isDragging ? '#60a5fa' : '#334155'}`,
+        borderRadius: '0.5rem',
+        padding: '0.85rem',
+        textAlign: 'center',
+        backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+        transition: 'all 0.2s',
+        cursor: attachmentFile ? 'default' : 'pointer',
+        position: 'relative',
+        overflow: 'hidden'
+      }}
+    >
+      {!attachmentFile && (
+        <input
+          type="file"
+          onChange={(e) => {
+            if (e.target.files?.[0]) handleAttachmentUpload(e.target.files[0]);
+          }}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 1 }}
+        />
+      )}
+      <div style={{ fontSize: '1.3rem', marginBottom: '0.3rem' }}>📎</div>
+      {attachmentFile ? (
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 'bold' }}>파일 선택됨</div>
+          <div style={{ fontSize: '0.7rem', color: '#94a3b8', wordBreak: 'break-all', marginTop: '0.2rem' }}>{attachmentFile.name}</div>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleRemoveAttachment(); }}
+            style={{ marginTop: '0.6rem', padding: '0.25rem 0.7rem', fontSize: '0.7rem', color: '#fff', backgroundColor: '#ef4444', border: 'none', borderRadius: '0.3rem', fontWeight: 'bold', cursor: 'pointer' }}
+          >
+            파일 삭제하기
+          </button>
+        </div>
+      ) : (
+        <div>
+          <div style={{ fontSize: '0.8rem', color: '#e2e8f0', marginBottom: '0.2rem' }}>상세안내 파일 첨부</div>
+          <div style={{ fontSize: '0.68rem', color: '#64748b' }}>여기로 파일을 드래그하거나<br />클릭하여 업로드하세요</div>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
     <main style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'hsl(var(--background))', overflow: 'hidden' }}>
       <LoginModal />
       <SimulationModal isOpen={showModal} onClose={() => setShowModal(false)} links={simulationLinks} />
 
-      <header style={{ padding: '0.8rem 2rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
+      <header style={{ position: 'relative', padding: '0.8rem 2rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(15, 23, 42, 0.4)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
           <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v1.4.3</span>
         </div>
+
+        {/* Center: live preview title (only while a document is open) */}
+        {pdfFile && (
+          <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            <h2 style={{ fontSize: '0.95rem', color: '#94a3b8', margin: 0 }}>미리보기 (Live Preview)</h2>
+            <button onClick={handleCloseFile} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}>파일 닫기</button>
+          </div>
+        )}
         <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {user && (
             <>
@@ -701,7 +759,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 320px', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 250px', flex: 1, overflow: 'hidden' }}>
 
         <aside className="custom-sidebar-scroll" style={{
           borderRight: '1px solid hsla(var(--glass-border) / 0.3)',
@@ -722,82 +780,22 @@ export default function Home() {
           <div style={{ flexShrink: 0 }}>
             <OverviewPanel onSelectMeeting={handleSelectMeeting} currentMeetingId={meetingId} />
           </div>
-
-          {(!config || config.allowAttachments) && (
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              style={{
-                marginTop: '1.5rem',
-                border: `2px dashed ${isDragging ? '#60a5fa' : '#334155'}`,
-                borderRadius: '0.5rem',
-                padding: '1rem',
-                textAlign: 'center',
-                backgroundColor: isDragging ? 'rgba(59, 130, 246, 0.1)' : 'rgba(15, 23, 42, 0.3)',
-                transition: 'all 0.2s',
-                cursor: attachmentFile ? 'default' : 'pointer',
-                position: 'relative',
-                overflow: 'hidden',
-                flexShrink: 0  // [New] Prevent shrinking
-              }}
-            >
-              {!attachmentFile && (
-                <input
-                  type="file"
-                  onChange={(e) => {
-                    if (e.target.files?.[0]) handleAttachmentUpload(e.target.files[0]);
-                  }}
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer', zIndex: 1 }}
-                />
-              )}
-              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📎</div>
-              {attachmentFile ? (
-                <div style={{ position: 'relative', zIndex: 2 }}>
-                  <div style={{ fontSize: '0.85rem', color: '#60a5fa', fontWeight: 'bold' }}>파일 선택됨</div>
-                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', wordBreak: 'break-all', marginTop: '0.2rem' }}>{attachmentFile.name}</div>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); handleRemoveAttachment(); }}
-                    style={{ marginTop: '0.7rem', padding: '0.3rem 0.8rem', fontSize: '0.75rem', color: '#fff', backgroundColor: '#ef4444', border: 'none', borderRadius: '0.3rem', fontWeight: 'bold', cursor: 'pointer' }}
-                  >
-                    파일 삭제하기
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <div style={{ fontSize: '0.85rem', color: '#e2e8f0', marginBottom: '0.2rem' }}>상세안내 파일 첨부</div>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>여기로 파일을 드래그하거나<br />클릭하여 업로드하세요</div>
-                </div>
-              )}
-            </div>
-          )}
         </aside>
 
-        <section style={{ backgroundColor: '#0f172a', padding: '1rem 2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', overflowY: 'auto' }}>
+        <section style={{ backgroundColor: '#0f172a', padding: '0.75rem 1.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', overflowY: 'auto' }}>
           <div style={{ width: '100%', height: '100%' }}>
             {pdfFile ? (
               <div style={{ animation: 'fadeIn 0.5s' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                    <h2 style={{ fontSize: '1rem', color: '#94a3b8', margin: 0 }}>미리보기 (Live Preview)</h2>
-                    <span style={{ fontSize: '0.75rem', color: '#64748b', opacity: 0.8 }}>
-                      💡 팁: 🖱️드래그로 이동 | <kbd style={{ background: '#1e293b', border: '1px solid #334155', padding: '0 3px', borderRadius: '3px' }}>방향키</kbd>로 받은 서명의 위치 미세조정
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
-                    <button onClick={handleCloseFile} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}>파일 닫기</button>
-                  </div>
-                </div>
                 <PDFPreview
                   file={pdfFile}
                   attendees={visibleAttendees}
                   onConfirm={handleSendRequests}
                   meetingId={meetingId}
                   initialOffsetX={meetingData?.signatureOffsetX ?? 0}
-                  initialOffsetY={meetingData?.signatureOffsetY ?? -55}
+                  initialOffsetY={meetingData?.signatureOffsetY ?? -4}
                   initialScale={meetingData?.signatureScale ?? 1.0}
                   currentStep={currentStep}
+                  leftColumnFooter={attachmentDropzone}
                 />
               </div>
             ) : (

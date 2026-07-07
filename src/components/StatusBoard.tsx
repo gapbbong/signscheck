@@ -280,9 +280,9 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
             )}
             */}
 
-            <div style={{ padding: '1.2rem 1.5rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.5)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 600, margin: 0 }}>참석자 목록 <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400 }}>({attendees.length}명)</span></h3>
+            <div style={{ padding: '1.2rem 1rem', borderBottom: '1px solid hsla(var(--glass-border) / 0.5)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 600, margin: 0, whiteSpace: 'nowrap' }}>참석자 목록 <span style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 400 }}>({attendees.length}명)</span></h3>
                     <div style={{ display: 'flex', gap: '0.4rem' }}>
                         {/* [Hold] 템플릿 기능 일시 중단
                         <button
@@ -305,13 +305,13 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button
                             onClick={onSelectAll}
-                            style={{ flex: 1, fontSize: '0.75rem', padding: '0.4rem', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: '4px', cursor: 'pointer' }}
+                            style={{ flex: 1, fontSize: '0.72rem', padding: '0.35rem 0.2rem', whiteSpace: 'nowrap', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.4)', borderRadius: '4px', cursor: 'pointer' }}
                         >
                             전체 선택
                         </button>
                         <button
                             onClick={onDeselectAll}
-                            style={{ flex: 1, fontSize: '0.75rem', padding: '0.4rem', background: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+                            style={{ flex: 1, fontSize: '0.72rem', padding: '0.35rem 0.2rem', whiteSpace: 'nowrap', background: 'rgba(100, 116, 139, 0.1)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
                         >
                             전체 해제
                         </button>
