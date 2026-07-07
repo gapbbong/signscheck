@@ -489,8 +489,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
             </div>
 
             {/* DOCUMENT (left) */}
-            <div className="custom-scroll" style={{ order: 1, alignSelf: 'flex-start', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '760px' }}>
-              <div style={{ position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', width: '100%', overflow: 'hidden' }}>
+            <div className="custom-scroll" style={{ order: 1, alignSelf: 'flex-start', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 0, width: '100%', maxWidth: '760px', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)' }}>
+              <div style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
                 <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: 'auto' }} />
 
                 <div style={{
@@ -569,10 +569,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
 
               {/* [New] Pages 2..N — read-only, scrollable below page 1 */}
               {numPages > 1 && Array.from({ length: numPages - 1 }).map((_, i) => (
-                <div key={i} style={{ position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', width: '100%', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(15, 23, 42, 0.75)', color: '#fff', fontSize: '0.7rem', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px', zIndex: 5 }}>
-                    {i + 2} 페이지
-                  </div>
+                <div key={i} style={{ position: 'relative', width: '100%', overflow: 'hidden' }}>
                   <canvas
                     ref={(el) => { extraPageRefs.current[i] = el; }}
                     style={{ display: 'block', width: '100%', height: 'auto' }}
