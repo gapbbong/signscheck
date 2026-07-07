@@ -18,6 +18,10 @@
 # temp files
 *.tmp
 
+# test fixtures / stray documents containing real personal data (names) — never commit
+/tests/*.pdf
+/*.pdf
+
 # next.js
 /.next/
 /out/

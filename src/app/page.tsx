@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ActionBar from "@/components/ActionBar";
 import OverviewPanel from "@/components/OverviewPanel";
 import LoginModal from "@/components/LoginModal";
 import { useAuth } from "@/lib/auth-context";
 import UploadZone from "@/components/UploadZone";
 import StatusBoard from "@/components/StatusBoard";
-import { extractStructuredTextFromPDF, extractNamesFromStructuredData } from '@/lib/pdf-parser';
+import { extractStructuredTextFromPDF, extractNamesFromStructuredData, detectDocumentType, ParseMode, PDFTextItem } from '@/lib/pdf-parser';
 import { fetchAttendeesFromSheet, Attendee } from '@/lib/gas-service';
 import { createSignatureRequest } from '@/lib/signature-service';
-import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment, updateMeetingHash, Meeting } from "@/lib/meeting-service";
+import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment, updateMeetingHash, updateMeetingSignatureOffset, Meeting } from "@/lib/meeting-service";
 import { useNotification } from '@/lib/NotificationContext';
 import { collection, query, onSnapshot, orderBy, getDocs, where, doc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -40,6 +40,17 @@ export default function Home() {
   const [statusMap, setStatusMap] = useState<Record<string, { status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string }>>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+
+  // [Hybrid] Extracted PDF text kept so the user can re-parse with a different
+  // document-type mode without re-uploading. detectedMode is what auto-detect
+  // chose; parseMode is the user's current selection ('auto' follows detection).
+  const [structuredItems, setStructuredItems] = useState<PDFTextItem[]>([]);
+  const [parseMode, setParseMode] = useState<ParseMode>('auto');
+  const [detectedMode, setDetectedMode] = useState<'signature' | 'roster' | null>(null);
+
+  // [New] Latest signature offset reported by PDFPreview, so 파일 닫기 can persist
+  // the current position even if the user never clicked '위치 저장'.
+  const latestOffsetRef = useRef<{ x: number; y: number; scale: number } | null>(null);
 
   // Session State
   const [meetingId, setMeetingId] = useState<string | null>(null);
@@ -315,8 +326,14 @@ export default function Home() {
       // setMeetingData will be handled by the onSnapshot listener triggered by setMeetingId
       console.log("New Meeting Created:", newMeetingId);
 
-      const structuredItems = await extractStructuredTextFromPDF(file);
-      const names = extractNamesFromStructuredData(structuredItems);
+      const items = await extractStructuredTextFromPDF(file);
+      // [Hybrid] Remember the raw text + auto-detected shape so the user can
+      // switch document-type modes later without re-uploading.
+      setStructuredItems(items);
+      setDetectedMode(detectDocumentType(items));
+      setParseMode('auto');
+
+      const names = extractNamesFromStructuredData(items, 'auto');
 
       if (names.length === 0) {
         showToast("문서에서 이름을 찾을 수 없습니다.", "error");
@@ -324,18 +341,7 @@ export default function Home() {
         return;
       }
 
-      const matched = await fetchAttendeesFromSheet(names);
-      const formatted = matched.map((m, idx) => ({
-        ...m,
-        id: idx.toString(),
-        selected: true,
-        status: 'pending'
-      }));
-
-      setAttendees(formatted);
-
-      // Save extracted attendees to Meeting Doc
-      await updateMeetingAttendees(newMeetingId, formatted);
+      const formatted = await buildAttendeesFromNames(names, newMeetingId);
 
       // [New] Increment usage count
       await incrementMeetingCount(user.uid);
@@ -347,6 +353,43 @@ export default function Home() {
       console.error(error);
       showToast(`분석 실패: ${error.message}`, "error");
       setPdfFile(null);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Shared: turn a list of extracted names into the attendee list, persist it,
+  // and update UI. Returns the formatted list.
+  const buildAttendeesFromNames = async (names: string[], mtgId: string | null) => {
+    const matched = await fetchAttendeesFromSheet(names);
+    const formatted = matched.map((m, idx) => ({
+      ...m,
+      id: idx.toString(),
+      selected: true,
+      status: 'pending'
+    }));
+    setAttendees(formatted);
+    if (mtgId) await updateMeetingAttendees(mtgId, formatted);
+    return formatted;
+  };
+
+  // [Hybrid] Manual override: re-run extraction on the already-loaded PDF text
+  // using a user-chosen document type ('auto' | 'signature' | 'roster').
+  const handleChangeParseMode = async (mode: ParseMode) => {
+    if (structuredItems.length === 0) return;
+    setParseMode(mode);
+    setIsProcessing(true);
+    try {
+      const names = extractNamesFromStructuredData(structuredItems, mode);
+      if (names.length === 0) {
+        showToast("이 방식으로는 이름을 찾을 수 없습니다.", "error");
+        return;
+      }
+      await buildAttendeesFromNames(names, meetingId);
+      showToast(`${names.length}명을 다시 인식했습니다.`, "success");
+    } catch (error: any) {
+      console.error(error);
+      showToast(`재인식 실패: ${error.message}`, "error");
     } finally {
       setIsProcessing(false);
     }
@@ -449,14 +492,27 @@ export default function Home() {
     }
   };
 
-  const handleCloseFile = () => {
+  const handleCloseFile = async () => {
+    // [New] Persist the current signature position before closing, so an
+    // adjustment made without clicking '위치 저장' is not lost.
+    const off = latestOffsetRef.current;
+    if (meetingId && off) {
+      try {
+        await updateMeetingSignatureOffset(meetingId, off.x, off.y, off.scale);
+      } catch (error) {
+        console.error("Failed to save signature offset on close:", error);
+      }
+    }
+    latestOffsetRef.current = null;
     setPdfFile(null);
     setAttachmentFile(null);
-    setAttendees([]);
     setAttendees([]);
     setMeetingId(null);
     setMeetingData(null);
     setStatusMap({});
+    setStructuredItems([]);
+    setDetectedMode(null);
+    setParseMode('auto');
   };
 
   const handleSendRequests = async () => {
@@ -746,7 +802,7 @@ export default function Home() {
         {pdfFile && (
           <div style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
             <h2 style={{ fontSize: '0.95rem', color: '#94a3b8', margin: 0 }}>미리보기 (Live Preview)</h2>
-            <button onClick={handleCloseFile} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.8rem' }}>파일 닫기</button>
+            <button onClick={handleCloseFile} style={{ backgroundColor: '#ef4444', border: 'none', color: '#fff', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 'bold', padding: '0.35rem 0.9rem', borderRadius: '0.4rem' }}>파일 닫기</button>
           </div>
         )}
         <div style={{ fontSize: '0.8rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -796,6 +852,7 @@ export default function Home() {
                   initialScale={meetingData?.signatureScale ?? 1.0}
                   currentStep={currentStep}
                   leftColumnFooter={attachmentDropzone}
+                  onOffsetChange={(x, y, scale) => { latestOffsetRef.current = { x, y, scale }; }}
                 />
               </div>
             ) : (
@@ -837,6 +894,54 @@ export default function Home() {
         </section>
 
         <aside style={{ borderLeft: '1px solid hsla(var(--glass-border) / 0.3)', backgroundColor: 'rgba(15, 23, 42, 0.2)', height: '100%', overflow: 'hidden' }}>
+          {detectedMode && attendees.length > 0 && (
+            <div style={{
+              background: 'rgba(30, 41, 59, 0.6)',
+              border: '1px solid #334155',
+              borderRadius: '0.6rem',
+              padding: '0.75rem 1rem',
+              marginBottom: '1rem'
+            }}>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span>📄 문서 인식 방식</span>
+                <span style={{ color: '#64748b' }}>
+                  (자동 감지: {detectedMode === 'signature' ? '회의록형(상단 참석자)' : '명렬표형(전체 명단)'})
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                {([
+                  { key: 'auto', label: '자동' },
+                  { key: 'signature', label: '회의록형' },
+                  { key: 'roster', label: '명렬표형' },
+                ] as { key: ParseMode; label: string }[]).map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => handleChangeParseMode(opt.key)}
+                    disabled={isProcessing}
+                    style={{
+                      flex: 1,
+                      padding: '0.4rem 0.5rem',
+                      borderRadius: '0.4rem',
+                      border: parseMode === opt.key ? '1px solid #3b82f6' : '1px solid #475569',
+                      background: parseMode === opt.key ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
+                      color: parseMode === opt.key ? '#93c5fd' : '#cbd5e1',
+                      fontSize: '0.8rem',
+                      fontWeight: parseMode === opt.key ? 700 : 400,
+                      cursor: isProcessing ? 'default' : 'pointer',
+                      opacity: isProcessing ? 0.6 : 1,
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.5rem', lineHeight: 1.4 }}>
+                인식된 이름이 이상하면 방식을 바꿔보세요. <b>회의록형</b>은 상단 참석자만, <b>명렬표형</b>은 전체 인원을 추출합니다.
+              </div>
+            </div>
+          )}
+
           <StatusBoard
             attendees={visibleAttendees}
             onToggle={handleToggleAttendee}

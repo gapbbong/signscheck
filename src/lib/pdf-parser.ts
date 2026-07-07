@@ -58,14 +58,37 @@ const SIGN_CELL_MARKERS = new Set([
     '서명', '서명란', '서명본', '서명본란', '(인)', '인', '인장', '사인', '싸인'
 ]);
 
-export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
+// [Hybrid] Two document shapes need different extraction strategies:
+//  - 'signature' (회의록형): a small attendee list at the top with a 서명 column.
+//    The reliable signal is the signature cells themselves; names are the cell
+//    to the left of each 서명. Body prose below must be ignored.
+//  - 'roster' (명렬표형): a full grid of every staff member across the page(s),
+//    with NO 서명 column (columns headed 교사명/성명/행정실 etc.). Here almost
+//    every short Korean token IS a name, so a global grid scan is correct and
+//    captures all columns (the column-anchor scan misses non-교사명 columns).
+export type ParseMode = 'auto' | 'signature' | 'roster';
+
+/**
+ * Auto-detect the document shape. Presence of any signature cell means it's a
+ * signature-column attendee list; otherwise treat it as a full roster.
+ */
+export function detectDocumentType(items: PDFTextItem[]): 'signature' | 'roster' {
+    const hasSignatureCells = items.some(item => SIGN_CELL_MARKERS.has(item.str.replace(/\s+/g, '')));
+    return hasSignatureCells ? 'signature' : 'roster';
+}
+
+export function extractNamesFromStructuredData(items: PDFTextItem[], mode: ParseMode = 'auto'): string[] {
     const potentialNames = new Set<string>();
+    const resolvedMode = mode === 'auto' ? detectDocumentType(items) : mode;
 
     // 0. Primary Strategy: Signature-Adjacency.
     // For each signature cell, take the nearest text cell to its left on the
     // same row and treat that as the participant's name. This ties detection
     // directly to the signature grid and ignores body text entirely.
-    const signItems = items.filter(item => SIGN_CELL_MARKERS.has(item.str.replace(/\s+/g, '')));
+    // Skipped in roster mode (no signature column to key off).
+    const signItems = resolvedMode === 'roster'
+        ? []
+        : items.filter(item => SIGN_CELL_MARKERS.has(item.str.replace(/\s+/g, '')));
     signItems.forEach(sign => {
         const leftCell = items
             .filter(item =>
@@ -102,8 +125,10 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
     });
 
     // Only fall back to header-anchor column scanning if signature-adjacency
-    // found nothing usable.
-    if (potentialNames.size === 0 && anchors.length > 0) {
+    // found nothing usable. Skipped for roster mode, which uses the global grid
+    // scan below (the column-anchor scan only aligns to 교사명 columns and drops
+    // other columns such as 행정실).
+    if (resolvedMode !== 'roster' && potentialNames.size === 0 && anchors.length > 0) {
         anchors.forEach(anchor => {
             // Find items below this specific anchor (same column)
             // Look for items with similar X coordinate (+/- 60px) and below it (Y increases upward in some systems, but pdf.js usually has Y increasing UP)
@@ -136,10 +161,11 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
         });
     }
 
-    // 2. Last-resort Fallback: only when nothing at all was found. Scanning every
-    // short Korean word globally is noisy (it grabs body text), so it must never
-    // run once a more reliable strategy has produced names.
-    if (potentialNames.size === 0) {
+    // 2. Global grid scan. In roster mode this is the PRIMARY strategy (every
+    // short Korean token in the grid is a name, across all columns/pages). In
+    // signature mode it is only a last-resort fallback when nothing else was
+    // found, since scanning every short word grabs body text.
+    if (resolvedMode === 'roster' || potentialNames.size === 0) {
         // [New] Sort items globally for fallback (Top-down, then Left-right)
         const sortedItems = [...items].sort((a, b) => {
             if (a.page !== b.page) return a.page - b.page;
@@ -164,7 +190,8 @@ export function extractNamesFromStructuredData(items: PDFTextItem[]): string[] {
         "없음", "이상", "개회", "폐회", "동의", "재청", "가결", "부결",
         "전원", "찬성", "반대", "기권", "서명", "날인", "확인", "작성", "작성자",
         "법정위", "학운위", "교권보호", "선도위", "학폭위", "내용이", "기록되", "개조식", "서명본",
-        "학년도", "교직원", "교사명", "학교장", "담당자", "비고", "연번", "행정실", "명렬", "고등학",
+        "학년도", "교직원", "교사명", "학교장", "담당자", "비고", "연번", "행정실", "명렬", "명렬표", "고등학",
+        "협의회", "협의", "학습", "도움", "닫기", "회의", "명단", "부서", "직급", "직책",
         "디지털", "선도학", "동의서", "법령", "학교명", "교육부", "교육청", "본인은", "해당사",
         "관련", "정보가", "법령", "동의서", "서명", "성명", "소속", "직위", "연락처",
         // User Reported Garbage

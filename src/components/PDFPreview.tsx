@@ -23,9 +23,10 @@ interface Props {
     initialScale?: number;
     currentStep?: number; // [New]
     leftColumnFooter?: ReactNode; // [New] rendered at the bottom of the left control column (e.g. attachment dropzone)
+    onOffsetChange?: (offsetX: number, offsetY: number, scale: number) => void; // [New] report live signature offset upward so the parent can persist it (e.g. on 파일 닫기)
 }
 
-export default function PDFPreview({ file, attendees, onConfirm, meetingId, initialOffsetX = 0, initialOffsetY = -4, initialScale = 1.0, currentStep = 0, leftColumnFooter }: Props) {
+export default function PDFPreview({ file, attendees, onConfirm, meetingId, initialOffsetX = 0, initialOffsetY = -4, initialScale = 1.0, currentStep = 0, leftColumnFooter, onOffsetChange }: Props) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [scale, setScale] = useState(1.0);
@@ -45,6 +46,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
         setOffsetY(initialOffsetY);
         setSigGlobalScale(initialScale);
     }, [initialOffsetX, initialOffsetY, initialScale]);
+
+    // [New] Report the live signature offset upward so the parent can persist it
+    // when the file is closed without an explicit '위치 저장' click.
+    useEffect(() => {
+        onOffsetChange?.(offsetX, offsetY, sigGlobalScale);
+    }, [offsetX, offsetY, sigGlobalScale, onOffsetChange]);
 
     const renderTaskRef = useRef<any>(null);
 
@@ -386,30 +393,15 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
     return (
         <div
             ref={containerRef}
-            style={{ position: 'relative', display: 'flex', gap: '1rem', alignItems: 'stretch', justifyContent: 'flex-start' }}
+            style={{ position: 'relative', display: 'flex', gap: '1rem', alignItems: 'stretch', justifyContent: 'center' }}
             onMouseMove={handleMouseMove}
             onMouseUp={handleMouseUp}
             onMouseLeave={handleMouseUp}
         >
             {/* CONTROL COLUMN (right of the document) */}
             <div style={{ order: 2, width: '140px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <div style={{ fontSize: '11px', color: '#cbd5e1', background: 'rgba(30,41,59,0.6)', border: '1px solid #334155', padding: '8px 10px', borderRadius: '6px', lineHeight: 1.6 }}>
+                <div style={{ fontSize: '12.5px', color: '#cbd5e1', background: 'rgba(30,41,59,0.6)', border: '1px solid #334155', padding: '9px 11px', borderRadius: '6px', lineHeight: 1.6 }}>
                     ⌨️ <b>화살표 키</b>로 서명 위치를 미세조정한 뒤 <b>"위치 저장"</b>을 누르세요.<br />🖱️ 드래그로도 옮길 수 있습니다.
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(255,255,255,0.95)', padding: '8px 10px', borderRadius: '6px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>↔ X</span>
-                        <input type="number" value={offsetX} onChange={(e) => setOffsetX(Number(e.target.value))} style={{ width: '64px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '3px', padding: '2px 4px' }} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>↕ Y</span>
-                        <input type="number" value={offsetY} onChange={(e) => setOffsetY(Number(e.target.value))} style={{ width: '64px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '3px', padding: '2px 4px' }} />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155' }}>🔍 Size</span>
-                        <input type="number" step="0.05" min="0.1" max="3" value={sigGlobalScale} onChange={(e) => setSigGlobalScale(Number(e.target.value))} style={{ width: '64px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '3px', padding: '2px 4px' }} />
-                    </div>
                 </div>
 
                 <button onClick={() => setRotation(prev => (prev + 90) % 360)} style={{ width: '100%', backgroundColor: '#1e293b', color: '#fff', border: '1px solid #334155', borderRadius: '6px', padding: '0.45rem', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>↻ 회전</button>
