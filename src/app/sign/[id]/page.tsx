@@ -546,7 +546,7 @@ export default function SignPage() {
                 <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0', position: 'sticky', bottom: 0, boxShadow: '0 -2px 8px rgba(0,0,0,0.06)' }}>
                     <button
                         onClick={() => setShowSignModal(true)}
-                        style={{ width: '100%', padding: '1rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(59,130,246,0.35)' }}
+                        style={{ display: 'block', width: '100%', maxWidth: '1000px', margin: '0 auto', padding: '1rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(59,130,246,0.35)' }}
                     >
                         ✔ 위 내용(첨부파일 포함) 모두 확인함 · 서명하기
                     </button>
@@ -571,7 +571,7 @@ export default function SignPage() {
                             <button onClick={() => setShowSignModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }} aria-label="닫기">×</button>
                         </div>
 
-                        <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', border: '2px dashed #cbd5e1', overflow: 'hidden', position: 'relative', height: `${canvasHeight}px` }}>
+                        <div style={{ backgroundColor: '#f1f5f9', borderRadius: '0.75rem', border: '2px dashed #cbd5e1', overflow: 'hidden', position: 'relative', height: `${canvasHeight}px` }}>
                             <canvas
                                 ref={canvasRef}
                                 style={{ touchAction: 'none', width: '100%', height: '100%' }}

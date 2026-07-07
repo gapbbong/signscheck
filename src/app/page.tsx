@@ -818,7 +818,7 @@ export default function Home() {
                       border: parseMode === opt.key ? '1px solid #3b82f6' : '1px solid #475569',
                       background: parseMode === opt.key ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
                       color: parseMode === opt.key ? '#93c5fd' : '#cbd5e1',
-                      fontSize: '0.72rem',
+                      fontSize: '0.8rem',
                       fontWeight: parseMode === opt.key ? 700 : 400,
                       letterSpacing: '-0.04em',
                       whiteSpace: 'nowrap',

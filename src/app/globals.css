@@ -30,6 +30,10 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  /* Crisper text, especially light text on the dark dashboard */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 /* Utilities */
