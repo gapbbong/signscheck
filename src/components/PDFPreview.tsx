@@ -489,7 +489,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
             </div>
 
             {/* DOCUMENT (left) */}
-            <div className="custom-scroll" style={{ order: 1, alignSelf: 'flex-start', maxHeight: 'calc(100vh - 80px)', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '760px' }}>
+            <div className="custom-scroll" style={{ order: 1, alignSelf: 'flex-start', maxHeight: 'calc(100vh - 100px)', overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '760px' }}>
               <div style={{ position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', width: '100%', overflow: 'hidden' }}>
                 <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: 'auto' }} />
 
