@@ -4,12 +4,13 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC9svtNm_FqEetfqT7OLLP9Ge1zLbpVa0k",
-  authDomain: "signsup-e4432.firebaseapp.com",
-  projectId: "signsup-e4432",
-  storageBucket: "signsup-e4432.firebasestorage.app",
-  messagingSenderId: "762277760915",
-  appId: "1:762277760915:web:03e9fb289c2aa694186266",
+  apiKey: "AIzaSyDk9rTMHPPQeKH0Pg8aie_HKx8pPS-cnnk",
+  authDomain: "signsup-675cb.firebaseapp.com",
+  projectId: "signsup-675cb",
+  storageBucket: "signsup-675cb.firebasestorage.app",
+  messagingSenderId: "509998538247",
+  appId: "1:509998538247:web:16d944372e55b84a5914a2",
+  measurementId: "G-240PF3QCV1",
 };
 
 // Initialize Firebase (Singleton pattern)
