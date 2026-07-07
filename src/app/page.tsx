@@ -796,6 +796,43 @@ export default function Home() {
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
           <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v1.4.3</span>
+
+          {/* [Hybrid] Document-type override, moved into the title bar (compact, no description) */}
+          {detectedMode && pdfFile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: '0.75rem', paddingLeft: '0.75rem', borderLeft: '1px solid #334155' }}>
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>📄 인식</span>
+              <div style={{ display: 'flex', gap: '0.25rem' }}>
+                {([
+                  { key: 'auto', label: '자동' },
+                  { key: 'signature', label: '회의록형' },
+                  { key: 'roster', label: '명렬표형' },
+                ] as { key: ParseMode; label: string }[]).map(opt => (
+                  <button
+                    key={opt.key}
+                    onClick={() => handleChangeParseMode(opt.key)}
+                    disabled={isProcessing}
+                    title={opt.key === 'auto' ? `자동 감지: ${detectedMode === 'signature' ? '회의록형' : '명렬표형'}` : undefined}
+                    style={{
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '0.35rem',
+                      border: parseMode === opt.key ? '1px solid #3b82f6' : '1px solid #475569',
+                      background: parseMode === opt.key ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
+                      color: parseMode === opt.key ? '#93c5fd' : '#cbd5e1',
+                      fontSize: '0.72rem',
+                      fontWeight: parseMode === opt.key ? 700 : 400,
+                      letterSpacing: '-0.04em',
+                      whiteSpace: 'nowrap',
+                      cursor: isProcessing ? 'default' : 'pointer',
+                      opacity: isProcessing ? 0.6 : 1,
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Center: live preview title (only while a document is open) */}
@@ -815,7 +852,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr 210px', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr 240px', flex: 1, overflow: 'hidden' }}>
 
         <aside className="custom-sidebar-scroll" style={{
           borderRight: '1px solid hsla(var(--glass-border) / 0.3)',
@@ -894,57 +931,6 @@ export default function Home() {
         </section>
 
         <aside style={{ borderLeft: '1px solid hsla(var(--glass-border) / 0.3)', backgroundColor: 'rgba(15, 23, 42, 0.2)', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {detectedMode && attendees.length > 0 && (
-            <div style={{
-              flexShrink: 0,
-              margin: '1rem 1rem 0',
-              background: 'rgba(30, 41, 59, 0.6)',
-              border: '1px solid #334155',
-              borderRadius: '0.6rem',
-              padding: '0.75rem 1rem'
-            }}>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <span style={{ whiteSpace: 'nowrap' }}>📄 문서 인식 방식</span>
-                <span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>
-                  (자동 감지: {detectedMode === 'signature' ? '회의록형(상단 참석자)' : '명렬표형(전체 명단)'})
-                </span>
-              </div>
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                {([
-                  { key: 'auto', label: '자동' },
-                  { key: 'signature', label: '회의록형' },
-                  { key: 'roster', label: '명렬표형' },
-                ] as { key: ParseMode; label: string }[]).map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => handleChangeParseMode(opt.key)}
-                    disabled={isProcessing}
-                    style={{
-                      flex: 1,
-                      padding: '0.4rem 0.25rem',
-                      borderRadius: '0.4rem',
-                      border: parseMode === opt.key ? '1px solid #3b82f6' : '1px solid #475569',
-                      background: parseMode === opt.key ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
-                      color: parseMode === opt.key ? '#93c5fd' : '#cbd5e1',
-                      fontSize: '0.75rem',
-                      fontWeight: parseMode === opt.key ? 700 : 400,
-                      letterSpacing: '-0.04em',
-                      whiteSpace: 'nowrap',
-                      cursor: isProcessing ? 'default' : 'pointer',
-                      opacity: isProcessing ? 0.6 : 1,
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-              <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.5rem', lineHeight: 1.4 }}>
-                인식된 이름이 이상하면 방식을 바꿔보세요. <b>회의록형</b>은 상단 참석자만, <b>명렬표형</b>은 전체 인원을 추출합니다.
-              </div>
-            </div>
-          )}
-
           <div style={{ flex: 1, minHeight: 0 }}>
             <StatusBoard
               attendees={visibleAttendees}

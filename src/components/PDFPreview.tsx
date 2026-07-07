@@ -41,6 +41,13 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
     const [offsetY, setOffsetY] = useState(initialOffsetY);
     const [sigGlobalScale, setSigGlobalScale] = useState(initialScale);
 
+    // [New] Oversample the canvas bitmap for crisp text when the document is
+    // displayed larger than its native PDF-point size. This ONLY changes the
+    // backing-store resolution — the coordinate `scale` stays 1.0, so signature
+    // offsets and the final PDF export are completely unaffected. displayScale
+    // is computed against the logical (÷RENDER_DPR) width so overlays stay aligned.
+    const RENDER_DPR = 2;
+
     // [New] Multi-page support: render pages 2..N read-only below page 1 so the
     // whole document is visible by scrolling. The signature overlay stays on
     // page 1 (where the attendee list / roster lives). Scroll container wraps all pages.
@@ -171,7 +178,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
         const canvas = canvasRef.current;
         const observer = new ResizeObserver(() => {
             if (canvas.width > 0) {
-                setDisplayScale(canvas.clientWidth / canvas.width);
+                // Logical width = backing width ÷ DPR, so displayScale matches the
+                // scale-1.0 coordinate space used by the overlay.
+                setDisplayScale(canvas.clientWidth / (canvas.width / RENDER_DPR));
             }
         });
         observer.observe(canvas);
@@ -185,25 +194,27 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
             try {
                 const page = await pdfDoc.getPage(1);
                 const desiredScale = 1.0;
-                const scaledViewport = page.getViewport({ scale: desiredScale, rotation: (page.rotate + rotation) % 360 });
+                // Coordinate scale stays 1.0 (used by overlay + export); the bitmap
+                // is rendered at desiredScale × RENDER_DPR for sharpness.
                 setScale(desiredScale);
+                const renderViewport = page.getViewport({ scale: desiredScale * RENDER_DPR, rotation: (page.rotate + rotation) % 360 });
 
                 const context = canvas.getContext('2d');
                 if (!context) return;
 
-                canvas.height = scaledViewport.height;
-                canvas.width = scaledViewport.width;
+                canvas.height = renderViewport.height;
+                canvas.width = renderViewport.width;
 
                 const renderContext = {
                     canvasContext: context,
-                    viewport: scaledViewport,
+                    viewport: renderViewport,
                 };
 
                 const task = page.render(renderContext);
                 renderTaskRef.current = task;
                 await task.promise;
 
-                setDisplayScale(canvas.clientWidth / canvas.width);
+                setDisplayScale(canvas.clientWidth / (canvas.width / RENDER_DPR));
             } catch (error: any) {
                 if (error.name !== 'RenderingCancelledException') {
                     console.error("Render error:", error);
@@ -233,7 +244,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 try {
                     const page = await pdfDoc.getPage(p);
                     if (cancelled) return;
-                    const viewport = page.getViewport({ scale: 1.0, rotation: (page.rotate + rotation) % 360 });
+                    const viewport = page.getViewport({ scale: 1.0 * RENDER_DPR, rotation: (page.rotate + rotation) % 360 });
                     const context = canvas.getContext('2d');
                     if (!context) continue;
                     canvas.height = viewport.height;
