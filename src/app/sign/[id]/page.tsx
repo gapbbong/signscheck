@@ -48,6 +48,7 @@ export default function SignPage() {
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pageCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+    const signatureMarkerRef = useRef<HTMLDivElement>(null);
     const thicknessRef = useRef<number>(0); // Store random thickness factor
     const [isDrawing, setIsDrawing] = useState(false);
 
@@ -236,7 +237,16 @@ export default function SignPage() {
         };
         render();
         return () => { cancelled = true; };
-    }, [pdfDoc, numPages, submitted, pdfLoadingError]); // Re-render on submission to show overlay
+    }, [pdfDoc, numPages, pdfLoadingError]); // Overlay is a separate div, so no re-render needed on submit
+
+    // [New] After submit, scroll the signature location into view so the signer sees where it landed
+    useEffect(() => {
+        if (!submitted || !namePos) return;
+        const doScroll = () => signatureMarkerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Retry a few times so it lands after the success banner appears and layout settles
+        const timers = [200, 600, 1100].map((ms) => setTimeout(doScroll, ms));
+        return () => timers.forEach(clearTimeout);
+    }, [submitted, namePos, renderScale]);
 
     // [New] Auto-close listener (Enter/Space)
     useEffect(() => {
@@ -381,6 +391,10 @@ export default function SignPage() {
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
+                @keyframes sig-pulse {
+                    0% { box-shadow: 0 0 0 0 rgba(16,185,129,0.55); }
+                    100% { box-shadow: 0 0 0 14px rgba(16,185,129,0); }
+                }
                 .spinner {
                     width: 24px;
                     height: 24px;
@@ -448,7 +462,7 @@ export default function SignPage() {
 
                                 {/* Real-time Signature Overlay on page 1 (Only works if name detection succeeded) */}
                                 {idx === 0 && (submitted || hasSigned) && namePos && !pdfLoadingError && (
-                                    <div style={{
+                                    <div ref={signatureMarkerRef} style={{
                                         position: 'absolute',
                                         // Centering logic with 60x15 slimmer size (v1.0.3) + meeting offset applied
                                         left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * meetingScale * renderScale) + meetingOffsetX}px`,
@@ -456,7 +470,11 @@ export default function SignPage() {
                                         width: `${60 * meetingScale * renderScale}px`,
                                         height: `${15 * meetingScale * renderScale}px`,
                                         pointerEvents: 'none',
-                                        zIndex: 10
+                                        zIndex: 10,
+                                        outline: submitted ? '2px solid #10b981' : 'none',
+                                        outlineOffset: '3px',
+                                        borderRadius: '2px',
+                                        animation: submitted ? 'sig-pulse 1.4s ease-out 3' : 'none',
                                     }}>
                                         <img
                                             src={localStorage.getItem('lastSignature') || requestData.signatureUrl || ''}
