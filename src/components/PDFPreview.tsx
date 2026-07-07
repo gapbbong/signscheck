@@ -41,6 +41,12 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
     const [offsetY, setOffsetY] = useState(initialOffsetY);
     const [sigGlobalScale, setSigGlobalScale] = useState(initialScale);
 
+    // [New] Multi-page support: render pages 2..N read-only below page 1 so the
+    // whole document is visible by scrolling. The signature overlay stays on
+    // page 1 (where the attendee list / roster lives). Scroll container wraps all pages.
+    const [numPages, setNumPages] = useState(1);
+    const extraPageRefs = useRef<(HTMLCanvasElement | null)[]>([]);
+
     useEffect(() => {
         setOffsetX(initialOffsetX);
         setOffsetY(initialOffsetY);
@@ -109,6 +115,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
             const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
             const doc = await loadingTask.promise;
             setPdfDoc(doc);
+            setNumPages(doc.numPages || 1);
 
             try {
                 const page = await doc.getPage(1);
@@ -212,6 +219,42 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
             }
         };
     }, [pdfDoc, rotation]);
+
+    // [New] Render pages 2..N (read-only, no signature overlay) for scroll view.
+    useEffect(() => {
+        if (!pdfDoc || numPages <= 1) return;
+        let cancelled = false;
+        const tasks: any[] = [];
+
+        const renderExtras = async () => {
+            for (let p = 2; p <= numPages; p++) {
+                const canvas = extraPageRefs.current[p - 2];
+                if (!canvas) continue;
+                try {
+                    const page = await pdfDoc.getPage(p);
+                    if (cancelled) return;
+                    const viewport = page.getViewport({ scale: 1.0, rotation: (page.rotate + rotation) % 360 });
+                    const context = canvas.getContext('2d');
+                    if (!context) continue;
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    const task = page.render({ canvasContext: context, viewport });
+                    tasks.push(task);
+                    await task.promise;
+                } catch (error: any) {
+                    if (error?.name !== 'RenderingCancelledException') {
+                        console.error(`Render error (page ${p}):`, error);
+                    }
+                }
+            }
+        };
+
+        renderExtras();
+        return () => {
+            cancelled = true;
+            tasks.forEach(t => { try { t.cancel(); } catch { } });
+        };
+    }, [pdfDoc, numPages, rotation]);
 
     const signedAttendees = attendees.filter(a => a.status === 'signed' && a.signatureUrl);
 
@@ -435,7 +478,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
             </div>
 
             {/* DOCUMENT (left) */}
-            <div style={{ order: 1, position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', alignSelf: 'flex-start', width: 'fit-content' }}>
+            <div className="custom-scroll" style={{ order: 1, alignSelf: 'flex-start', maxHeight: '80vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem', width: 'fit-content', maxWidth: '100%' }}>
+              <div style={{ position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', width: 'fit-content' }}>
                 <canvas ref={canvasRef} style={{ display: 'block', maxWidth: '100%', height: 'auto' }} />
 
                 <div style={{
@@ -510,6 +554,20 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                         })}
                     </div>
                 </div>
+              </div>
+
+              {/* [New] Pages 2..N — read-only, scrollable below page 1 */}
+              {numPages > 1 && Array.from({ length: numPages - 1 }).map((_, i) => (
+                <div key={i} style={{ position: 'relative', border: '1px solid #475569', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)', width: 'fit-content' }}>
+                  <div style={{ position: 'absolute', top: 8, left: 8, background: 'rgba(15, 23, 42, 0.75)', color: '#fff', fontSize: '0.7rem', fontWeight: 'bold', padding: '2px 8px', borderRadius: '4px', zIndex: 5 }}>
+                    {i + 2} 페이지
+                  </div>
+                  <canvas
+                    ref={(el) => { extraPageRefs.current[i] = el; }}
+                    style={{ display: 'block', maxWidth: '100%', height: 'auto' }}
+                  />
+                </div>
+              ))}
             </div>
 
             {showDebug && (

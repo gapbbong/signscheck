@@ -893,14 +893,15 @@ export default function Home() {
           </div>
         </section>
 
-        <aside style={{ borderLeft: '1px solid hsla(var(--glass-border) / 0.3)', backgroundColor: 'rgba(15, 23, 42, 0.2)', height: '100%', overflow: 'hidden' }}>
+        <aside style={{ borderLeft: '1px solid hsla(var(--glass-border) / 0.3)', backgroundColor: 'rgba(15, 23, 42, 0.2)', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {detectedMode && attendees.length > 0 && (
             <div style={{
+              flexShrink: 0,
+              margin: '1rem 1rem 0',
               background: 'rgba(30, 41, 59, 0.6)',
               border: '1px solid #334155',
               borderRadius: '0.6rem',
-              padding: '0.75rem 1rem',
-              marginBottom: '1rem'
+              padding: '0.75rem 1rem'
             }}>
               <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span>📄 문서 인식 방식</span>
@@ -942,20 +943,22 @@ export default function Home() {
             </div>
           )}
 
-          <StatusBoard
-            attendees={visibleAttendees}
-            onToggle={handleToggleAttendee}
-            onAdd={handleAddAttendee}
-            onBulkUpdate={handleBulkUpdate}
-            onSelectAll={handleSelectAll}
-            onDeselectAll={handleDeselectAll}
-            onSend={handleSendRequests}
-            sendCount={visibleAttendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent')).length}
-            config={config}
-            hostUid={user?.uid}
-            onLoadTemplate={handleLoadTemplate}
-            currentStep={currentStep}
-          />
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <StatusBoard
+              attendees={visibleAttendees}
+              onToggle={handleToggleAttendee}
+              onAdd={handleAddAttendee}
+              onBulkUpdate={handleBulkUpdate}
+              onSelectAll={handleSelectAll}
+              onDeselectAll={handleDeselectAll}
+              onSend={handleSendRequests}
+              sendCount={visibleAttendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent')).length}
+              config={config}
+              hostUid={user?.uid}
+              onLoadTemplate={handleLoadTemplate}
+              currentStep={currentStep}
+            />
+          </div>
         </aside>
 
       </div>
