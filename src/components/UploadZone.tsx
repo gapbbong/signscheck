@@ -66,12 +66,11 @@ export default function UploadZone({ onFileSelected, currentStep = 1 }: Props) {
                     <div>
                         <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#fff' }}>회의록 PDF를 이곳에 드래그하세요</h3>
                         <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>또는 클릭해서 파일을 선택하세요</p>
-                        <label className="btn-primary" style={{ maxWidth: '200px', margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', animation: currentStep === 1 ? 'pulse-blue 2s infinite' : 'none' }}>
+                        <label className="btn-primary" style={{ maxWidth: '200px', margin: '0 auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', animation: currentStep === 1 ? 'pulse-blue 0.9s steps(1, end) infinite' : 'none' }}>
                             <style>{`
                                 @keyframes pulse-blue {
-                                    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: scale(1); }
-                                    50% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); transform: scale(1.02); }
-                                    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: scale(1); }
+                                    0%, 100% { opacity: 1; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.7); }
+                                    50% { opacity: 0.3; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
                                 }
                             `}</style>
                             {currentStep === 1 && <span style={{ fontWeight: 'bold' }}>①</span>}

@@ -673,12 +673,11 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                     to { transform: scale(1); opacity: 1; }
                 }
                 @keyframes pulse-blue {
-                    0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); transform: scale(1); }
-                    50% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); transform: scale(1.05); }
-                    100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); transform: scale(1); }
+                    0%, 100% { opacity: 1; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.7); }
+                    50% { opacity: 0.3; box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
                 }
                 .btn-pulse {
-                    animation: pulse-blue 2s infinite;
+                    animation: pulse-blue 0.9s steps(1, end) infinite;
                 }
             `}</style>
         </div>
