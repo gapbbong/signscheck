@@ -22,8 +22,8 @@ export default function SignPage() {
     const [config, setConfig] = useState<AppConfig | null>(null);
     const [requestData, setRequestData] = useState<any>(null);
     const [submitted, setSubmitted] = useState(false);
-    const [isChecked, setIsChecked] = useState(false);
     const [hasSigned, setHasSigned] = useState(false);
+    const [showSignModal, setShowSignModal] = useState(false);
     const [canvasHeight, setCanvasHeight] = useState(200);
     const [txtContent, setTxtContent] = useState<string | null>(null);
 
@@ -33,6 +33,7 @@ export default function SignPage() {
 
     // PDF Preview State (Signer Side)
     const [pdfDoc, setPdfDoc] = useState<any>(null);
+    const [numPages, setNumPages] = useState(0);
     const [pageHeight, setPageHeight] = useState(0);
     const [namePos, setNamePos] = useState<{ x: number, y: number, w: number, delta: number } | null>(null);
     const [renderScale, setRenderScale] = useState(1);
@@ -46,7 +47,7 @@ export default function SignPage() {
     const [meetingScale, setMeetingScale] = useState(1.0);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const previewCanvasRef = useRef<HTMLCanvasElement>(null);
+    const pageCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
     const thicknessRef = useRef<number>(0); // Store random thickness factor
     const [isDrawing, setIsDrawing] = useState(false);
 
@@ -125,6 +126,7 @@ export default function SignPage() {
 
                                             console.log("PDF loaded successfully via canvas.");
                                             setPdfDoc(docObj);
+                                            setNumPages(docObj.numPages || 1);
 
                                             // Analysis (Mini Row Grouping & Header Detection)
                                             const page = await docObj.getPage(1);
@@ -195,39 +197,46 @@ export default function SignPage() {
         }
     }, [requestData?.attachmentUrl]);
 
-    // [New] Set Canvas dimensions safely
+    // [New] Set Canvas dimensions safely (canvas lives inside the sign modal now)
     useEffect(() => {
-        if (!loading && requestData && canvasRef.current) {
+        if (showSignModal && canvasRef.current) {
             const canvas = canvasRef.current;
             // Standard internal resolution for consistency
             canvas.width = 600;
             canvas.height = 200;
             setCanvasHeight(200);
+            setHasSigned(false);
         }
-    }, [loading, requestData]);
+    }, [showSignModal]);
 
-    // [New] Render Preview PDF onto Canvas
+    // [New] Render ALL PDF pages onto their own canvases (scrollable multi-page view)
     useEffect(() => {
-        if (!pdfDoc || !previewCanvasRef.current || pdfLoadingError) return; // Don't render if error
+        if (!pdfDoc || pdfLoadingError || numPages === 0) return; // Don't render if error
+        let cancelled = false;
         const render = async () => {
-            const page = await pdfDoc.getPage(1);
-            const canvas = previewCanvasRef.current!;
-            const context = canvas.getContext('2d');
-            if (!context) return;
+            for (let p = 1; p <= numPages; p++) {
+                const canvas = pageCanvasRefs.current[p - 1];
+                if (!canvas) continue;
+                const context = canvas.getContext('2d');
+                if (!context) continue;
 
-            const containerWidth = canvas.parentElement?.clientWidth || 300;
-            const viewport = page.getViewport({ scale: 1 });
-            const scale = containerWidth / viewport.width;
-            setRenderScale(scale);
-            const scaledViewport = page.getViewport({ scale });
+                const page = await pdfDoc.getPage(p);
+                const containerWidth = canvas.parentElement?.clientWidth || 300;
+                const viewport = page.getViewport({ scale: 1 });
+                const scale = containerWidth / viewport.width;
+                if (p === 1) setRenderScale(scale); // page 1 scale drives the signature overlay
+                const scaledViewport = page.getViewport({ scale });
 
-            canvas.width = scaledViewport.width;
-            canvas.height = scaledViewport.height;
+                canvas.width = scaledViewport.width;
+                canvas.height = scaledViewport.height;
 
-            await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+                await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+                if (cancelled) return;
+            }
         };
         render();
-    }, [pdfDoc, submitted, pdfLoadingError]); // Re-render on submission to show overlay
+        return () => { cancelled = true; };
+    }, [pdfDoc, numPages, submitted, pdfLoadingError]); // Re-render on submission to show overlay
 
     // [New] Auto-close listener (Enter/Space)
     useEffect(() => {
@@ -314,8 +323,8 @@ export default function SignPage() {
 
     const handleSubmit = async () => {
         if (!canvasRef.current) return;
-        if (!isChecked) {
-            showToast("안내사항을 확인하고 체크해주세요.", "error");
+        if (!hasSigned) {
+            showToast("서명을 입력해주세요.", "error");
             return;
         }
 
@@ -335,6 +344,7 @@ export default function SignPage() {
 
             // Update local state for immediate overlay update v0.6.7
             setRequestData((prev: any) => prev ? { ...prev, signatureUrl: signatureDataUrl, status: 'signed' } : null);
+            setShowSignModal(false);
             setSubmitted(true);
         } catch (error) {
             console.error(error);
@@ -404,52 +414,71 @@ export default function SignPage() {
                     </label>
                     <div style={{
                         width: '100%',
-                        aspectRatio: '210 / 297',
-                        height: 'auto',
-                        backgroundColor: '#fff',
+                        maxHeight: '75vh',
+                        overflowY: 'auto',
+                        backgroundColor: '#f1f5f9',
                         borderRadius: '0.5rem',
                         border: '1px solid #e2e8f0',
                         position: 'relative',
-                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
-                        // Remove overflow: hidden to allow bottom parts to be visible if they overflow slightly
+                        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)',
+                        padding: (pdfDoc && !pdfLoadingError) ? '0.75rem' : 0,
                     }}>
-                        {/* Canvas Layer - Attempted approach */}
-                        <canvas
-                            ref={previewCanvasRef}
-                            style={{ width: '100%', height: 'auto', display: (pdfDoc && !pdfLoadingError) ? 'block' : 'none', borderRadius: '0.5rem' }}
-                        />
+                        {/* Canvas Layer - Render every page (scrollable) */}
+                        {(pdfDoc && !pdfLoadingError) && Array.from({ length: numPages }).map((_, idx) => (
+                            <div
+                                key={idx}
+                                style={{
+                                    position: 'relative',
+                                    marginBottom: idx < numPages - 1 ? '0.75rem' : 0,
+                                    boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)',
+                                    borderRadius: '0.5rem',
+                                    overflow: 'visible',
+                                    backgroundColor: '#fff',
+                                }}
+                            >
+                                <canvas
+                                    ref={(el) => { pageCanvasRefs.current[idx] = el; }}
+                                    style={{ width: '100%', height: 'auto', display: 'block', borderRadius: '0.5rem' }}
+                                />
+                                {numPages > 1 && (
+                                    <span style={{ position: 'absolute', top: '6px', right: '8px', fontSize: '0.7rem', color: '#94a3b8', backgroundColor: 'rgba(255,255,255,0.85)', padding: '1px 6px', borderRadius: '999px', pointerEvents: 'none' }}>
+                                        {idx + 1} / {numPages}
+                                    </span>
+                                )}
+
+                                {/* Real-time Signature Overlay on page 1 (Only works if name detection succeeded) */}
+                                {idx === 0 && (submitted || hasSigned) && namePos && !pdfLoadingError && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        // Centering logic with 60x15 slimmer size (v1.0.3) + meeting offset applied
+                                        left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * meetingScale * renderScale) + meetingOffsetX}px`,
+                                        top: `${(pageHeight - namePos.y) * renderScale - (12 * meetingScale * renderScale) + meetingOffsetY}px`,
+                                        width: `${60 * meetingScale * renderScale}px`,
+                                        height: `${15 * meetingScale * renderScale}px`,
+                                        pointerEvents: 'none',
+                                        zIndex: 10
+                                    }}>
+                                        <img
+                                            src={localStorage.getItem('lastSignature') || requestData.signatureUrl || ''}
+                                            style={{ width: '100%', height: '100%', mixBlendMode: 'multiply', opacity: 0.9 }}
+                                            alt="Sign Preview"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
 
                         {/* Fallback Layer - If canvas fails or loading */}
                         {(pdfLoadingError || (!pdfDoc && !isCanvasLoading)) && (
                             <iframe
                                 src={`https://docs.google.com/viewer?url=${encodeURIComponent(requestData.mainPdfUrl)}&embedded=true`}
-                                style={{ width: '100%', height: '100%', border: 'none', borderRadius: '0.5rem' }}
+                                style={{ width: '100%', height: '75vh', border: 'none', borderRadius: '0.5rem', display: 'block' }}
                                 title="Primary PDF Fallback"
                             />
                         )}
 
-                        {/* Real-time Signature Overlay (Only works if name detection succeeded) */}
-                        {(submitted || hasSigned) && namePos && !pdfLoadingError && (
-                            <div style={{
-                                position: 'absolute',
-                                // Centering logic with 60x15 slimmer size (v1.0.3) + meeting offset applied
-                                left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * meetingScale * renderScale) + meetingOffsetX}px`,
-                                top: `${(pageHeight - namePos.y) * renderScale - (12 * meetingScale * renderScale) + meetingOffsetY}px`,
-                                width: `${60 * meetingScale * renderScale}px`,
-                                height: `${15 * meetingScale * renderScale}px`,
-                                pointerEvents: 'none',
-                                zIndex: 10
-                            }}>
-                                <img
-                                    src={localStorage.getItem('lastSignature') || requestData.signatureUrl || ''}
-                                    style={{ width: '100%', height: '100%', mixBlendMode: 'multiply', opacity: 0.9 }}
-                                    alt="Sign Preview"
-                                />
-                            </div>
-                        )}
-
                         {!pdfDoc && !pdfLoadingError && isCanvasLoading && (
-                            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#94a3b8', backgroundColor: 'rgba(255,255,255,0.8)', zIndex: 20 }}>
+                            <div style={{ minHeight: '300px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', color: '#94a3b8' }}>
                                 <div className="spinner"></div>
                                 <div>문서를 불러오고 있습니다...</div>
                             </div>
@@ -492,44 +521,39 @@ export default function SignPage() {
                     </div>
                 )}
 
-                {/* 3. Signature Area - Hide after submission */}
-                {!submitted && (
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                        <div style={{ marginBottom: '1rem', padding: '1.5rem', backgroundColor: '#eff6ff', borderRadius: '1rem', border: '2px solid #3b82f6', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <input type="checkbox" id="confirmCheck" checked={isChecked} onChange={(e) => setIsChecked(e.target.checked)} style={{ width: '24px', height: '24px', accentColor: '#3b82f6', cursor: 'pointer' }} />
-                            <label htmlFor="confirmCheck" style={{ fontSize: '1rem', fontWeight: 'bold', color: '#1e40af', cursor: 'pointer', flex: 1 }}>
-                                위 내용(첨부파일 포함)을 모두 확인하였으며, 이에 서명합니다.
-                            </label>
+            </main>
+
+            {/* Confirm button (replaces the old checkbox) - opens the signature popup */}
+            {!submitted && (
+                <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0', position: 'sticky', bottom: 0, boxShadow: '0 -2px 8px rgba(0,0,0,0.06)' }}>
+                    <button
+                        onClick={() => setShowSignModal(true)}
+                        style={{ width: '100%', padding: '1rem', backgroundColor: '#3b82f6', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', boxShadow: '0 2px 6px rgba(59,130,246,0.35)' }}
+                    >
+                        ✔ 위 내용(첨부파일 포함) 모두 확인함 · 서명하기
+                    </button>
+                </footer>
+            )}
+
+            {/* Signature Popup Modal */}
+            {showSignModal && !submitted && (
+                <div
+                    style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(15,23,42,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+                    onClick={() => setShowSignModal(false)}
+                >
+                    <div
+                        style={{ backgroundColor: '#fff', borderRadius: '1rem', padding: '1.5rem', width: 'min(520px, 94vw)', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: '0 20px 40px rgba(0,0,0,0.25)', position: 'relative' }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div>
+                                <h3 style={{ fontSize: '1.15rem', fontWeight: 'bold', color: '#1e40af', margin: 0 }}>{requestData.name}님, 서명해 주세요</h3>
+                                <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0.35rem 0 0' }}>아래 칸에 꽉 차게 서명해 주세요.</p>
+                            </div>
+                            <button onClick={() => setShowSignModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }} aria-label="닫기">×</button>
                         </div>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                            <label style={{ fontSize: '0.9rem', fontWeight: 'bold' }}>아래 입력칸에 꽉 차게 서명해 주세요</label>
-                            {hasStoredSig && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        const saved = localStorage.getItem('lastSignature');
-                                        if (saved && canvasRef.current) {
-                                            const img = new Image();
-                                            img.onload = () => {
-                                                const ctx = canvasRef.current?.getContext('2d');
-                                                if (ctx) {
-                                                    ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-                                                    ctx.drawImage(img, 0, 0);
-                                                    setHasSigned(true);
-                                                }
-                                            };
-                                            img.src = saved;
-                                        } else { showToast("저장된 서명이 없습니다.", "error"); }
-                                    }}
-                                    style={{ fontSize: '0.8rem', color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer' }}
-                                >
-                                    ↺ 이전 서명 불러오기
-                                </button>
-                            )}
-                        </div>
-
-                        <div style={{ flex: 1, backgroundColor: '#fff', borderRadius: '1rem', border: '1px solid #cbd5e1', overflow: 'hidden', position: 'relative', minHeight: `${canvasHeight}px` }}>
+                        <div style={{ backgroundColor: '#fff', borderRadius: '0.75rem', border: '2px dashed #cbd5e1', overflow: 'hidden', position: 'relative', height: `${canvasHeight}px` }}>
                             <canvas
                                 ref={canvasRef}
                                 style={{ touchAction: 'none', width: '100%', height: '100%' }}
@@ -537,21 +561,45 @@ export default function SignPage() {
                                 onTouchStart={startDrawing} onTouchMove={draw} onTouchEnd={stopDrawing}
                             />
                         </div>
-                        <button onClick={handleClear} style={{ marginTop: '0.5rem', alignSelf: 'flex-end', fontSize: '0.9rem', color: '#64748b', background: 'none', border: 'none', textDecoration: 'underline' }}>Clear</button>
-                    </div>
-                )}
-            </main>
 
-            {!submitted && (
-                <footer style={{ padding: '1.5rem', backgroundColor: '#fff', borderTop: '1px solid #e2e8f0' }}>
-                    <button
-                        onClick={handleSubmit}
-                        disabled={!isChecked || !hasSigned}
-                        style={{ width: '100%', padding: '1rem', backgroundColor: (isChecked && hasSigned) ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1.1rem', fontWeight: 'bold', cursor: (isChecked && hasSigned) ? 'pointer' : 'not-allowed' }}
-                    >
-                        서명 제출하기
-                    </button>
-                </footer>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const saved = localStorage.getItem('lastSignature');
+                                    if (saved && canvasRef.current) {
+                                        const img = new Image();
+                                        img.onload = () => {
+                                            const ctx = canvasRef.current?.getContext('2d');
+                                            if (ctx) {
+                                                ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
+                                                ctx.drawImage(img, 0, 0);
+                                                setHasSigned(true);
+                                            }
+                                        };
+                                        img.src = saved;
+                                    } else { showToast("저장된 서명이 없습니다.", "error"); }
+                                }}
+                                style={{ flex: 1, padding: '0.9rem 0.4rem', backgroundColor: '#eff6ff', color: '#3b82f6', border: '1px solid #bfdbfe', borderRadius: '0.75rem', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                                ↺ 이전 서명 불러오기
+                            </button>
+                            <button
+                                onClick={handleClear}
+                                style={{ flex: 1, padding: '0.9rem 0.4rem', backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '0.75rem', fontSize: '0.85rem', fontWeight: 'bold', cursor: 'pointer' }}
+                            >
+                                🧹 깨끗이(다시)
+                            </button>
+                            <button
+                                onClick={handleSubmit}
+                                disabled={!hasSigned}
+                                style={{ flex: 1.4, padding: '0.9rem 0.4rem', backgroundColor: hasSigned ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '0.9rem', fontWeight: 'bold', cursor: hasSigned ? 'pointer' : 'not-allowed' }}
+                            >
+                                서명 제출하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
         </div>
