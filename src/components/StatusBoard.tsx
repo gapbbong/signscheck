@@ -421,15 +421,16 @@ export default function StatusBoard({ attendees, onToggle, onAdd, onBulkUpdate, 
                         className={currentStep === 3 ? "btn-primary btn-pulse" : "btn-primary"}
                         style={{
                             width: '100%',
-                            fontSize: '1rem',
-                            padding: '0.8rem',
+                            fontSize: '0.95rem',
+                            padding: '0.8rem 0.5rem',
                             opacity: (sendCount === 0 || isNewMeetingDisabled) ? 0.5 : 1,
                             cursor: (sendCount === 0 || isNewMeetingDisabled) ? 'not-allowed' : 'pointer',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                            whiteSpace: 'nowrap'
                         }}
                     >
                         {currentStep === 3 && <span style={{ fontWeight: 'bold' }}>③</span>}
-                        <span>🚀 {isNewMeetingDisabled ? "제한됨" : (sendCount > 0 ? `${sendCount}명에게 요청 보내기` : '요청 보내기')}</span>
+                        <span style={{ whiteSpace: 'nowrap' }}>🚀 {isNewMeetingDisabled ? "제한됨" : (sendCount > 0 ? `${sendCount}명에게 요청 보내기` : '요청 보내기')}</span>
                     </button>
                     {sendCount > 0 && (
                         <div style={{ fontSize: '0.7rem', color: '#64748b', textAlign: 'center', marginTop: '0.5rem' }}>
