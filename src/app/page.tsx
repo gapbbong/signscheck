@@ -815,7 +815,7 @@ export default function Home() {
         </div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '250px 1fr 250px', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '210px 1fr 210px', flex: 1, overflow: 'hidden' }}>
 
         <aside className="custom-sidebar-scroll" style={{
           borderRight: '1px solid hsla(var(--glass-border) / 0.3)',
@@ -903,9 +903,9 @@ export default function Home() {
               borderRadius: '0.6rem',
               padding: '0.75rem 1rem'
             }}>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <span>📄 문서 인식 방식</span>
-                <span style={{ color: '#64748b' }}>
+              <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <span style={{ whiteSpace: 'nowrap' }}>📄 문서 인식 방식</span>
+                <span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>
                   (자동 감지: {detectedMode === 'signature' ? '회의록형(상단 참석자)' : '명렬표형(전체 명단)'})
                 </span>
               </div>
@@ -921,13 +921,15 @@ export default function Home() {
                     disabled={isProcessing}
                     style={{
                       flex: 1,
-                      padding: '0.4rem 0.5rem',
+                      padding: '0.4rem 0.25rem',
                       borderRadius: '0.4rem',
                       border: parseMode === opt.key ? '1px solid #3b82f6' : '1px solid #475569',
                       background: parseMode === opt.key ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
                       color: parseMode === opt.key ? '#93c5fd' : '#cbd5e1',
-                      fontSize: '0.8rem',
+                      fontSize: '0.75rem',
                       fontWeight: parseMode === opt.key ? 700 : 400,
+                      letterSpacing: '-0.04em',
+                      whiteSpace: 'nowrap',
                       cursor: isProcessing ? 'default' : 'pointer',
                       opacity: isProcessing ? 0.6 : 1,
                       transition: 'all 0.15s'
