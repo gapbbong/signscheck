@@ -368,7 +368,19 @@ export default function Home() {
         return;
       }
 
-      const formatted = await buildAttendeesFromNames(names, newMeetingId);
+      // [Curtain] The attendee lookup (phone matching) is a network step with no
+      // sub-progress, so creep 90→99 while it runs to avoid a "frozen at 90%" look.
+      let creep = 90;
+      const creepTimer = setInterval(() => {
+        creep = Math.min(creep + 1, 99);
+        setProgress(creep);
+      }, 150);
+      let formatted;
+      try {
+        formatted = await buildAttendeesFromNames(names, newMeetingId);
+      } finally {
+        clearInterval(creepTimer);
+      }
       setProgress(100); // [Curtain] fully drawn — overlay fades out on isProcessing=false
 
       // [New] Increment usage count
@@ -905,7 +917,7 @@ export default function Home() {
         </aside>
 
         <section style={{ backgroundColor: '#0f172a', padding: '0.75rem 1.5rem 1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', overflow: 'hidden' }}>
-          <div style={{ width: '100%', height: '100%' }}>
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             {pdfFile ? (
               <div style={{ animation: 'fadeIn 0.5s' }}>
                 <PDFPreview
