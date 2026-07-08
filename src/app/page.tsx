@@ -13,7 +13,7 @@ import { createSignatureRequest } from '@/lib/signature-service';
 import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment, updateMeetingHash, updateMeetingSignatureOffset, Meeting } from "@/lib/meeting-service";
 import { useNotification } from '@/lib/NotificationContext';
 import { collection, query, onSnapshot, orderBy, getDocs, where, doc } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 import { canCreateMeeting, incrementMeetingCount } from "@/lib/subscription-service";
@@ -39,6 +39,10 @@ export default function Home() {
   const [config, setConfig] = useState<AppConfig | null>(null);
   const [statusMap, setStatusMap] = useState<Record<string, { status: string; signatureUrl?: string; ip?: string; deviceInfo?: string; userAgent?: string }>>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  // [Curtain] 0–100 progress that drives the "커텐" overlay height while a file
+  // is being processed. Advanced stage-by-stage in handleFileSelected, with the
+  // slow PDF upload mapped to real byte progress so the curtain speed tracks it.
+  const [progress, setProgress] = useState(0);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   // [Hybrid] Extracted PDF text kept so the user can re-parse with a different
@@ -301,6 +305,7 @@ export default function Home() {
     }
 
     setIsProcessing(true);
+    setProgress(5); // [Curtain] start the curtain just past the top edge
     setPdfFile(file);
 
     try {
@@ -315,19 +320,37 @@ export default function Home() {
         setIsProcessing(false);
         return;
       }
+      setProgress(15);
 
-      // [New] Upload PDF to Storage
+      // [New] Upload PDF to Storage — resumable so the curtain tracks real
+      // byte progress (this is the slowest step). Map upload 0→100% into the
+      // 15→65 band of the overall curtain.
       console.log("Uploading original PDF to Storage...");
       const pdfStorageRef = ref(storage, `meetings/${Date.now()}_${file.name}`);
-      const pdfSnapshot = await uploadBytes(pdfStorageRef, file);
-      const pdfUrl = await getDownloadURL(pdfSnapshot.ref);
+      const uploadTask = uploadBytesResumable(pdfStorageRef, file);
+      await new Promise<void>((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const pct = snapshot.totalBytes
+              ? snapshot.bytesTransferred / snapshot.totalBytes
+              : 0;
+            setProgress(15 + Math.round(pct * 50));
+          },
+          (error) => reject(error),
+          () => resolve()
+        );
+      });
+      const pdfUrl = await getDownloadURL(uploadTask.snapshot.ref);
       console.log("PDF Uploaded, URL:", pdfUrl);
+      setProgress(70);
 
       // [New] Create Meeting with PDF URL
       const newMeetingId = await createMeeting(user.uid, user.displayName || "담당자", file.name, pdfUrl);
       setMeetingId(newMeetingId);
       // setMeetingData will be handled by the onSnapshot listener triggered by setMeetingId
       console.log("New Meeting Created:", newMeetingId);
+      setProgress(80);
 
       const items = await extractStructuredTextFromPDF(file);
       // [Hybrid] Remember the raw text + auto-detected shape so the user can
@@ -335,6 +358,7 @@ export default function Home() {
       setStructuredItems(items);
       setDetectedMode(detectDocumentType(items));
       setParseMode('auto');
+      setProgress(90);
 
       const names = extractNamesFromStructuredData(items, 'auto');
 
@@ -345,6 +369,7 @@ export default function Home() {
       }
 
       const formatted = await buildAttendeesFromNames(names, newMeetingId);
+      setProgress(100); // [Curtain] fully drawn — overlay fades out on isProcessing=false
 
       // [New] Increment usage count
       await incrementMeetingCount(user.uid);
@@ -358,6 +383,7 @@ export default function Home() {
       setPdfFile(null);
     } finally {
       setIsProcessing(false);
+      setProgress(0);
     }
   };
 
@@ -916,18 +942,43 @@ export default function Home() {
             {isProcessing && (
               <div style={{
                 position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                backgroundColor: 'rgba(15, 23, 42, 0.8)',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                zIndex: 50, backdropFilter: 'blur(4px)'
+                overflow: 'hidden', zIndex: 50, pointerEvents: 'none',
+                backgroundColor: 'rgba(15, 23, 42, 0.25)'
               }}>
-                <div className="spinner" style={{
-                  width: '40px', height: '40px', border: '4px solid rgba(255, 255, 255, 0.1)',
-                  borderLeftColor: '#60a5fa', borderRadius: '50%', animation: 'spin 1s linear infinite'
-                }}></div>
-                <div style={{ marginTop: '1rem', color: '#e2e8f0', fontSize: '1.1rem', fontWeight: 500 }}>
-                  참석자 추출 중... 🔄
+                {/* [Curtain] descends top→bottom, its height bound to progress so
+                    its speed tracks real work. Smooth transition glides between
+                    the stage jumps and the live upload progress. */}
+                <div style={{
+                  position: 'absolute', top: 0, left: 0, width: '100%',
+                  height: `${progress}%`,
+                  transition: 'height 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
+                  background: 'linear-gradient(180deg, #0b1220 0%, #131c33 55%, #1b2748 100%)',
+                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
+                  overflow: 'hidden'
+                }}>
+                  {/* fabric folds */}
+                  <div style={{
+                    position: 'absolute', inset: 0,
+                    background: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, rgba(0,0,0,0.05) 44px, rgba(0,0,0,0.10) 88px)'
+                  }} />
+                  {/* glowing bottom hem */}
+                  <div style={{
+                    position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px',
+                    background: 'linear-gradient(90deg, #60a5fa, #a855f7)',
+                    boxShadow: '0 0 14px rgba(96, 165, 250, 0.85)'
+                  }} />
                 </div>
-                <style jsx>{` @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } `}</style>
+
+                {/* Label pill — readable whether over the PDF or over the curtain */}
+                <div style={{
+                  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+                  textAlign: 'center', padding: '0.7rem 1.4rem', borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
+                  border: '1px solid rgba(148, 163, 184, 0.25)'
+                }}>
+                  <div style={{ color: '#e2e8f0', fontSize: '1.05rem', fontWeight: 600 }}>참석자 추출 중...</div>
+                  <div style={{ marginTop: '0.35rem', color: '#93c5fd', fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{progress}%</div>
+                </div>
               </div>
             )}
           </div>
