@@ -108,10 +108,13 @@ export default function Home() {
     }
 
     // 1. Requests Listener
+    // NOTE: no orderBy here on purpose — we only build a status map keyed by
+    // phone/name (order irrelevant), and adding orderBy would require a Firestore
+    // composite index (meetingId + createdAt) that silently breaks the live
+    // listener on a fresh project, so signed status/signatures never appear.
     const q = query(
       collection(db, "requests"),
-      where("meetingId", "==", meetingId),
-      orderBy("createdAt", "desc")
+      where("meetingId", "==", meetingId)
     );
 
     const unsubscribeRequests = onSnapshot(q, (snapshot) => {
