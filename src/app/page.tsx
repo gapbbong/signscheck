@@ -922,7 +922,7 @@ export default function Home() {
                   borderLeftColor: '#60a5fa', borderRadius: '50%', animation: 'spin 1s linear infinite'
                 }}></div>
                 <div style={{ marginTop: '1rem', color: '#e2e8f0', fontSize: '1.1rem', fontWeight: 500 }}>
-                  작업 처리 중... 🔄
+                  참석자 추출 중... 🔄
                 </div>
                 <style jsx>{` @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } } `}</style>
               </div>
