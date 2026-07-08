@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 
 export interface Meeting {
     id: string;
@@ -116,19 +116,31 @@ export async function updateMeetingSignatureOffset(
 
 export async function getRecentMeetings(hostUid: string): Promise<Meeting[]> {
     try {
-        // Requires Firestore Index for compound query: hostUid (Asc/Desc) + createdAt (Desc)
+        // NOTE: no orderBy here on purpose — combining where("hostUid") with
+        // orderBy("createdAt") requires a Firestore composite index that does
+        // not exist on a fresh project, which makes this query throw and the
+        // recent-meetings list silently show empty. We fetch by hostUid only
+        // and sort/limit client-side instead (host has few meetings).
         const q = query(
             collection(db, "meetings"),
-            where("hostUid", "==", hostUid),
-            orderBy("createdAt", "desc"),
-            limit(10)
+            where("hostUid", "==", hostUid)
         );
 
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({
+        const meetings = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         } as Meeting));
+
+        // Sort by createdAt desc (Firestore Timestamp has toMillis(); guard nulls
+        // for docs whose serverTimestamp hasn't resolved yet).
+        meetings.sort((a, b) => {
+            const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+            const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+            return tb - ta;
+        });
+
+        return meetings.slice(0, 10);
     } catch (error) {
         console.error("Error fetching meetings:", error);
         return [];
