@@ -402,7 +402,17 @@ export default function Home() {
   // Shared: turn a list of extracted names into the attendee list, persist it,
   // and update UI. Returns the formatted list.
   const buildAttendeesFromNames = async (names: string[], mtgId: string | null) => {
-    const matched = await fetchAttendeesFromSheet(names);
+    // Phone-number lookup is an optional enrichment. If it fails (GAS endpoint
+    // unreachable / CORS → "Failed to fetch"), don't abort the whole analysis —
+    // fall back to names with blank phones so the attendee list still loads.
+    let matched;
+    try {
+      matched = await fetchAttendeesFromSheet(names);
+    } catch (e) {
+      console.warn("Attendee phone lookup failed, proceeding with names only:", e);
+      matched = names.map(name => ({ name, phone: null, confidence: 1.0 }));
+      showToast("전화번호 자동 조회에 실패해 이름만 불러왔습니다. '일괄 등록'으로 번호를 추가할 수 있어요.", "info");
+    }
     const formatted = matched.map((m, idx) => ({
       ...m,
       id: idx.toString(),
