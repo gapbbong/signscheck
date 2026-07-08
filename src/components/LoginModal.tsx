@@ -30,9 +30,13 @@ export default function LoginModal() {
                 border: '1px solid hsla(var(--primary) / 0.3)',
                 boxShadow: '0 0 50px rgba(59, 130, 246, 0.2)'
             }}>
-                <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>👋 Welcome Back</h2>
-                <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>
-                    Please sign in to access your secure dashboard.
+                <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>👋 환영합니다</h2>
+                <p style={{ color: '#cbd5e1', marginBottom: '1rem', lineHeight: 1.6 }}>
+                    <b>서명 요청을 만들려면 로그인이 필요합니다.</b>
+                </p>
+                <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '2rem', lineHeight: 1.7, textAlign: 'left' }}>
+                    회의록·참석자 명단 등 <b style={{ color: '#cbd5e1' }}>민감한 정보를 안전하게 보호</b>하기 위해 로그인이 필요합니다.<br />
+                    로그인하면 내가 만든 회의·서명 기록이 <b style={{ color: '#cbd5e1' }}>내 계정에만 연결</b>되어, 다른 사람은 볼 수 없습니다.
                 </p>
 
                 <button
@@ -46,11 +50,11 @@ export default function LoginModal() {
                     }}
                 >
                     <span style={{ fontSize: '1.2rem', marginRight: '0.5rem' }}>G</span>
-                    Sign in with Google
+                    구글 계정으로 로그인
                 </button>
 
                 <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '1.5rem' }}>
-                    Authorized Personnel Only
+                    회의 주최자(교직원) 전용 · 참석자는 로그인 없이 서명 가능합니다
                 </p>
             </div>
         </div>
