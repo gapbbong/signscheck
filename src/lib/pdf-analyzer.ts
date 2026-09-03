@@ -104,9 +104,29 @@ export function findNamePosition(
         const rowClean = normalizeText(rowStr);
 
         if (namePattern.test(rowClean)) {
-            // Find the specific items that match the name
-            const matchingItems = rowItems.filter(i => namePattern.test(normalizeText(i.str)));
-            const targetItems = matchingItems.length > 0 ? matchingItems : rowItems;
+            // Localize the name to its own cell(s). A single item may contain
+            // the whole name; PDF.js also often splits it ("이갑" + "종"), so
+            // fall back to the shortest run of adjacent items whose text spans
+            // the name. If neither works, skip this row rather than using the
+            // whole-row bounding box (which throws the signature far off).
+            const rowByX = [...rowItems].sort((a, b) => a.transform[4] - b.transform[4]);
+            let targetItems: PDFTextItem[] = rowByX.filter(i => normalizeText(i.str).includes(cleanTarget));
+            if (targetItems.length === 0) {
+                for (let i = 0; i < rowByX.length && targetItems.length === 0; i++) {
+                    let acc = '';
+                    for (let j = i; j < rowByX.length && j < i + 4; j++) {
+                        acc += normalizeText(rowByX[j].str);
+                        if (acc.includes(cleanTarget)) {
+                            const span = rowByX.slice(i, j + 1);
+                            const spanW = Math.max(...span.map(s => s.transform[4] + (s.width || 0)))
+                                - Math.min(...span.map(s => s.transform[4]));
+                            if (spanW < 90) targetItems = span; // reject scattered false matches
+                            break;
+                        }
+                    }
+                }
+            }
+            if (targetItems.length === 0) continue;
 
             const minX = Math.min(...targetItems.map(i => i.transform[4]));
             const maxX = Math.max(...targetItems.map(i => i.transform[4] + (i.width || 0)));
@@ -115,27 +135,45 @@ export function findNamePosition(
             const avgY = targetItems.reduce((acc, i) => acc + i.transform[5], 0) / targetItems.length;
 
             let sigWidth: number | undefined;
-            const rowSorted = [...rowItems].sort((a, b) => a.transform[4] - b.transform[4]);
+            const rowSorted = rowByX;
 
             // Fallback estimate when there is neither a signature cell nor a
-            // header delta to anchor to (e.g. 회의록형: names in wide cells with
-            // no 서명 column). Drop the signature into the empty cell between
-            // this name and the next cell on the row — far more accurate than a
-            // fixed push that overshoots onto the next name.
+            // header delta to anchor to (e.g. 회의록형: a row of "name | blank |
+            // name | blank" where the blank is the signing cell). Estimate one
+            // cell width from the spacing of the other names on the row and put
+            // the signature one cell to the right of this name — consistent for
+            // every name including the last one.
             let finalDelta: number;
-            const nextCell = rowSorted.find(i =>
-                i.transform[4] > maxX + 2 &&
-                !targetItems.includes(i as any)
-            );
-            if (nextCell) {
-                const gapStart = maxX;
-                const gapEnd = Math.min(nextCell.transform[4] - 3, maxX + 95);
-                const cellCenter = (gapStart + gapEnd) / 2;
-                finalDelta = cellCenter - nameCenter;
-                sigWidth = Math.max(gapEnd - gapStart, 28);
+            const ROW_LABELS = new Set(['참석자', '참석', '참여자', '출석자', '참석위원', '성명', '서명', '장소', '일시']);
+            const nameStarts = Array.from(new Set(
+                rowSorted
+                    .filter(i => {
+                        const s = normalizeText(i.str);
+                        return s.length >= 2 && s.length <= 4 && /[가-힣]/.test(s) && !ROW_LABELS.has(s);
+                    })
+                    .map(i => Math.round(i.transform[4]))
+            )).sort((a, b) => a - b);
+
+            let cellW = 0;
+            if (nameStarts.length >= 2) {
+                const gaps = nameStarts.slice(1).map((x, k) => x - nameStarts[k]).filter(g => g > 8).sort((a, b) => a - b);
+                if (gaps.length) cellW = gaps[Math.floor(gaps.length / 2)] / 2; // name+blank alternate
+            }
+
+            if (cellW > 10) {
+                const signCenter = minX + cellW * 1.5; // centre of the cell after the name
+                finalDelta = signCenter - nameCenter;
+                sigWidth = cellW * 0.9;
             } else {
-                // Last name on the row — a modest push, no next cell to overrun.
-                finalDelta = Math.max(w, 20) + 34;
+                // Couldn't read the row structure — modest push to the right.
+                const nextCell = rowSorted.find(i => i.transform[4] > maxX + 2 && !targetItems.includes(i as any));
+                if (nextCell) {
+                    const gapEnd = Math.min(nextCell.transform[4] - 3, maxX + 95);
+                    finalDelta = (maxX + gapEnd) / 2 - nameCenter;
+                    sigWidth = Math.max(gapEnd - maxX, 28);
+                } else {
+                    finalDelta = Math.max(w, 20) + 34;
+                }
             }
 
             if (headerDeltas.length > 0) {

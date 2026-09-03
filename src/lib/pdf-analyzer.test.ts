@@ -109,6 +109,25 @@ describe('PDF Analyzer Logic', () => {
             expect(nameCenter + pos.delta).toBeGreaterThan(272);
             expect(nameCenter + pos.delta).toBeLessThan(292);
         });
+        it('회의록형 row (name | blank | name …): signature lands one cell right, same for every name', () => {
+            const mk = (str: string, x: number) => ({ str, transform: [1, 0, 0, 1, x, 640] as number[], width: str.length * 11 });
+            const rows = {
+                640: [
+                    mk('참', 70), mk('석', 82), mk('자', 94),
+                    mk('이상수', 140), mk('정필구', 240), mk('김민경', 340),
+                    mk('이갑종', 440), mk('김웅환', 540), // last name, no next cell
+                ],
+            };
+            const first = findNamePosition('이상수', rows as any, []) as any;
+            const last = findNamePosition('김웅환', rows as any, []) as any;
+            // cellW = gap(100)/2 = 50; signCenter = minX + 75
+            const firstBoxCenter = first.x + first.w / 2 + first.delta;
+            const lastBoxCenter = last.x + last.w / 2 + last.delta;
+            expect(firstBoxCenter).toBeGreaterThan(200);   // ~215, into the blank after 이상수
+            expect(firstBoxCenter).toBeLessThan(235);
+            expect(lastBoxCenter).toBeGreaterThan(600);     // ~615, blank after 김웅환 — not off at the edge
+            expect(lastBoxCenter).toBeLessThan(640);
+        });
         it('should find the correct position for a name using fuzzy matching', () => {
             const rows = {
                 500: [
