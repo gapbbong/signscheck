@@ -51,3 +51,13 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# legacy prototype folders (kept locally, not part of the app)
+/ver0[0-9]/
+/ver0[0-9].zip
+/index.html
+/server.js
+/signPage.html
+/*.mp4
+/교육청제출(교육분야)/
+/교육청제출(행정분야)/
