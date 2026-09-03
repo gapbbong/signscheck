@@ -82,77 +82,108 @@ const PARTICIPANT_LABELS = new Set([
 export function detectDocumentType(items: PDFTextItem[]): 'signature' | 'roster' {
     const hasSignatureCells = items.some(item => SIGN_CELL_MARKERS.has(item.str.replace(/\s+/g, '')));
     if (hasSignatureCells) return 'signature';
-    // A lone "참석자" label with no signature column is still a meeting-minutes
-    // sheet (names in a small top block), not a full staff roster. Treat it as
-    // 'signature' so the top-block extractor runs instead of a page-wide scan.
-    const hasParticipantLabel = items.some(item => PARTICIPANT_LABELS.has(item.str.replace(/\s+/g, '')));
-    return hasParticipantLabel ? 'signature' : 'roster';
+    // A "참석자" label with no signature column is still a meeting-minutes sheet
+    // (names in a small top block), not a full staff roster. If the top-block
+    // extractor can pull a real attendee list out of it, treat it as 'signature'
+    // so the page-wide roster scan (which scrapes body prose) never runs.
+    if (extractNamesFromParticipantBlock(items).length >= 2) return 'signature';
+    return 'roster';
 }
 
 // Small set of non-name cells that can sit inside the top attendee block.
 const BLOCK_NOISE = new Set([
     '장소', '일시', '장 소', '일 시', '성명', '서명', '소속', '직위', '직급', '직책',
-    '연락처', '비고', '구분', '부서', '회의명', '안건', '날짜'
+    '연락처', '비고', '구분', '부서', '회의명', '안건', '날짜', '참석', '참석자',
+    '참여자', '출석자', '참석위원', '불참자', '불참', '작성자', '기록자'
 ]);
 
+// A row cell that means "the attendee block is over" — body prose, a section
+// header, anything with digits or markup.
+const isBodyCell = (raw: string): boolean => {
+    const s = raw.replace(/\s+/g, '');
+    return s.length > 4 ||
+        /[0-9<>【】〔〕\[\](){}:~/*·◦●○◆▶►■□◈]/.test(raw) ||
+        /협의|내용|안건|세부|계획|평가|사항|성취|출제|문항|기준|지도/.test(s);
+};
+
 /**
- * 회의록형 top block: collect names from the cells to the right of a "참석자"
- * label. Walks down at most a few rows and stops as soon as the block ends
- * (a body line, a section header, anything with digits/markup) — it never
- * scans to the bottom of the page.
+ * Group items on one page into visual rows (top → bottom), tolerant of the
+ * letter-spaced, fragmented cells PDF.js emits for table headers ("참 석 자").
  */
-function extractNamesFromParticipantBlock(items: PDFTextItem[]): string[] {
-    const label = items.find(i => PARTICIPANT_LABELS.has(i.str.replace(/\s+/g, '')));
-    if (!label) return [];
-
-    const lineH = label.height && label.height > 0 ? label.height : 12;
-    const names: string[] = [];
-
-    const candidates = items
-        .filter(i =>
-            i.page === label.page &&
-            i.x > label.x + 5 &&                     // to the right of the label
-            i.y < label.y + lineH * 1.5 &&           // not a full row above the label
-            label.y - i.y < lineH * 8                // hard cap: a few rows at most
-        )
-        .sort((a, b) => (Math.abs(a.y - b.y) > lineH * 0.6 ? b.y - a.y : a.x - b.x));
-
-    // Group into rows and process top→bottom, stopping when the block ends.
-    let currentRowY: number | null = null;
-    let row: PDFTextItem[] = [];
-    const flushRow = (): boolean => {
-        if (row.length === 0) return true;
-        const isBodyLike = row.some(it => {
-            const s = it.str.replace(/\s+/g, '');
-            return s.length > 4 ||
-                /[0-9<>【】\[\](){}:~/*]/.test(it.str) ||
-                /협의|내용|안건|세부|계획|평가|사항/.test(s);
-        });
-        if (isBodyLike) {
-            // Header row above the names (일시/장소 등) → skip and keep looking.
-            // Body row below the names → the block is over.
-            return names.length === 0;
-        }
-        row.forEach(it => {
-            const s = it.str.replace(/\s+/g, '');
-            if (s.length >= 2 && s.length <= 4 && !BLOCK_NOISE.has(s)) {
-                extractNamesFromRawString(it.str).forEach(n => names.push(n));
+function groupRows(items: PDFTextItem[], lineH: number): { y: number; cells: PDFTextItem[] }[] {
+    const rows: { y: number; cells: PDFTextItem[] }[] = [];
+    [...items]
+        .sort((a, b) => (Math.abs(a.y - b.y) > lineH * 0.6 ? b.y - a.y : a.x - b.x))
+        .forEach(item => {
+            const row = rows.find(r => Math.abs(r.y - item.y) <= lineH * 0.7);
+            if (row) {
+                row.cells.push(item);
+                row.y = (row.y * (row.cells.length - 1) + item.y) / row.cells.length;
+            } else {
+                rows.push({ y: item.y, cells: [item] });
             }
         });
-        return true;
-    };
+    rows.forEach(r => r.cells.sort((a, b) => a.x - b.x));
+    return rows;
+}
 
-    for (const item of candidates) {
-        if (currentRowY === null || Math.abs(item.y - currentRowY) <= lineH * 0.6) {
-            if (currentRowY === null) currentRowY = item.y;
-            row.push(item);
-        } else {
-            if (!flushRow()) { row = []; break; }
-            row = [item];
-            currentRowY = item.y;
+/**
+ * 회의록형 top block: collect names from the cells to the RIGHT of a "참석자"
+ * label. Works row-by-row from the label row downward and stops the moment the
+ * block ends — it never scans to the bottom of the page, and never reads the
+ * body prose.
+ */
+function extractNamesFromParticipantBlock(items: PDFTextItem[]): string[] {
+    if (items.length === 0) return [];
+
+    // The attendee block is always on the first page that has text.
+    const firstPage = Math.min(...items.map(i => i.page));
+    const pageItems = items.filter(i => i.page === firstPage);
+
+    const heights = pageItems.map(i => i.height).filter(h => h > 0).sort((a, b) => a - b);
+    const lineH = heights.length ? heights[Math.floor(heights.length / 2)] : 12;
+
+    const rows = groupRows(pageItems, lineH);
+
+    // Find the row that carries a participant label, allowing it to be split
+    // across up to 4 leading fragments ("참" "석" "자").
+    let labelRowIdx = -1;
+    let labelEndX = -Infinity;
+    for (let idx = 0; idx < rows.length; idx++) {
+        const cells = rows[idx].cells;
+        let acc = '';
+        for (let k = 0; k < Math.min(4, cells.length); k++) {
+            acc += cells[k].str.replace(/\s+/g, '');
+            if (PARTICIPANT_LABELS.has(acc)) {
+                labelRowIdx = idx;
+                labelEndX = cells[k].x + (cells[k].width || 0);
+                break;
+            }
+            if (acc.length >= 5) break; // not a label
         }
+        if (labelRowIdx >= 0) break;
     }
-    flushRow();
+    if (labelRowIdx < 0) return [];
+
+    // Walk the label row and the rows below it (a few at most), taking only the
+    // cells to the right of the label. Stop at the first body row.
+    const names: string[] = [];
+    for (let idx = labelRowIdx; idx < rows.length && idx <= labelRowIdx + 5; idx++) {
+        const rightCells = rows[idx].cells.filter(c => c.x > labelEndX - 2);
+        if (rightCells.length === 0) continue;
+
+        if (rightCells.some(c => isBodyCell(c.str))) {
+            if (names.length > 0) break; // block ended
+            continue;                    // a header row above the names — skip
+        }
+
+        rightCells.forEach(c => {
+            const s = c.str.replace(/\s+/g, '');
+            if (s.length >= 2 && s.length <= 4 && !BLOCK_NOISE.has(s)) {
+                extractNamesFromRawString(c.str).forEach(n => names.push(n));
+            }
+        });
+    }
 
     return names;
 }

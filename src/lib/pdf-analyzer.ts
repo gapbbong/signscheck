@@ -110,8 +110,11 @@ export function findNamePosition(
             const nameCenter = (minX + maxX) / 2;
             const avgY = targetItems.reduce((acc, i) => acc + i.transform[5], 0) / targetItems.length;
 
-            // Use closest header delta as a fallback estimate.
-            let finalDelta = 140;
+            // Fallback estimate when there is neither a signature cell nor a
+            // header delta to anchor to (e.g. 회의록형: names in wide cells with
+            // no 서명 column). Sit the signature just to the right of the name
+            // rather than a fixed 140pt push that overshoots into other columns.
+            let finalDelta = Math.max(w, 24) + 46;
             if (headerDeltas.length > 0) {
                 const bestH = headerDeltas.reduce((prev, curr) =>
                     Math.abs(curr.nameX - minX) < Math.abs(prev.nameX - minX) ? curr : prev

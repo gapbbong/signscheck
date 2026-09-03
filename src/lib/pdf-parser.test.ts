@@ -49,6 +49,23 @@ describe('extractNamesFromStructuredData', () => {
         );
     });
 
+    it('회의록형: handles a letter-spaced label split into fragments ("참" "석" "자")', () => {
+        const items: PDFTextItem[] = [
+            item('일', 70, 712), item('시', 90, 712),
+            item('2026년 8월20일(목) 13:10~13:30', 130, 712),
+            item('참', 70, 695), item('석', 88, 695), item('자', 106, 695),
+            item('이상수', 140, 697), item('정필구', 210, 697), item('김민경', 280, 697),
+            item('이갑종', 360, 697),
+            item('최지은', 140, 679), item('황철현', 210, 679),
+            item('협의내용', 70, 655),
+            item('교과별 성취율이 골고루 분포되도록 출제한다', 140, 655),
+        ];
+        const names = extractNamesFromStructuredData(items);
+        expect(names.sort()).toEqual(
+            ['이상수', '정필구', '김민경', '이갑종', '최지은', '황철현'].sort()
+        );
+    });
+
     it('does not pick up body text or role labels as names', () => {
         const items: PDFTextItem[] = [
             item('배영화', 217, 562), item('서명', 275, 562),
