@@ -72,9 +72,89 @@ export type ParseMode = 'auto' | 'signature' | 'roster';
  * Auto-detect the document shape. Presence of any signature cell means it's a
  * signature-column attendee list; otherwise treat it as a full roster.
  */
+// Labels that introduce a top-of-document attendee block (회의록형). Names sit
+// in the cells to the RIGHT of one of these, spanning a row or two at the very
+// top — never a full-page grid.
+const PARTICIPANT_LABELS = new Set([
+    '참석자', '참석위원', '참여자', '출석자', '참석', '참석인원', '참석자명단'
+]);
+
 export function detectDocumentType(items: PDFTextItem[]): 'signature' | 'roster' {
     const hasSignatureCells = items.some(item => SIGN_CELL_MARKERS.has(item.str.replace(/\s+/g, '')));
-    return hasSignatureCells ? 'signature' : 'roster';
+    if (hasSignatureCells) return 'signature';
+    // A lone "참석자" label with no signature column is still a meeting-minutes
+    // sheet (names in a small top block), not a full staff roster. Treat it as
+    // 'signature' so the top-block extractor runs instead of a page-wide scan.
+    const hasParticipantLabel = items.some(item => PARTICIPANT_LABELS.has(item.str.replace(/\s+/g, '')));
+    return hasParticipantLabel ? 'signature' : 'roster';
+}
+
+// Small set of non-name cells that can sit inside the top attendee block.
+const BLOCK_NOISE = new Set([
+    '장소', '일시', '장 소', '일 시', '성명', '서명', '소속', '직위', '직급', '직책',
+    '연락처', '비고', '구분', '부서', '회의명', '안건', '날짜'
+]);
+
+/**
+ * 회의록형 top block: collect names from the cells to the right of a "참석자"
+ * label. Walks down at most a few rows and stops as soon as the block ends
+ * (a body line, a section header, anything with digits/markup) — it never
+ * scans to the bottom of the page.
+ */
+function extractNamesFromParticipantBlock(items: PDFTextItem[]): string[] {
+    const label = items.find(i => PARTICIPANT_LABELS.has(i.str.replace(/\s+/g, '')));
+    if (!label) return [];
+
+    const lineH = label.height && label.height > 0 ? label.height : 12;
+    const names: string[] = [];
+
+    const candidates = items
+        .filter(i =>
+            i.page === label.page &&
+            i.x > label.x + 5 &&                     // to the right of the label
+            i.y < label.y + lineH * 1.5 &&           // not a full row above the label
+            label.y - i.y < lineH * 8                // hard cap: a few rows at most
+        )
+        .sort((a, b) => (Math.abs(a.y - b.y) > lineH * 0.6 ? b.y - a.y : a.x - b.x));
+
+    // Group into rows and process top→bottom, stopping when the block ends.
+    let currentRowY: number | null = null;
+    let row: PDFTextItem[] = [];
+    const flushRow = (): boolean => {
+        if (row.length === 0) return true;
+        const isBodyLike = row.some(it => {
+            const s = it.str.replace(/\s+/g, '');
+            return s.length > 4 ||
+                /[0-9<>【】\[\](){}:~/*]/.test(it.str) ||
+                /협의|내용|안건|세부|계획|평가|사항/.test(s);
+        });
+        if (isBodyLike) {
+            // Header row above the names (일시/장소 등) → skip and keep looking.
+            // Body row below the names → the block is over.
+            return names.length === 0;
+        }
+        row.forEach(it => {
+            const s = it.str.replace(/\s+/g, '');
+            if (s.length >= 2 && s.length <= 4 && !BLOCK_NOISE.has(s)) {
+                extractNamesFromRawString(it.str).forEach(n => names.push(n));
+            }
+        });
+        return true;
+    };
+
+    for (const item of candidates) {
+        if (currentRowY === null || Math.abs(item.y - currentRowY) <= lineH * 0.6) {
+            if (currentRowY === null) currentRowY = item.y;
+            row.push(item);
+        } else {
+            if (!flushRow()) { row = []; break; }
+            row = [item];
+            currentRowY = item.y;
+        }
+    }
+    flushRow();
+
+    return names;
 }
 
 export function extractNamesFromStructuredData(items: PDFTextItem[], mode: ParseMode = 'auto'): string[] {
@@ -107,6 +187,14 @@ export function extractNamesFromStructuredData(items: PDFTextItem[], mode: Parse
             }
         }
     });
+
+    // 0.5 회의록형 top block: if signature-adjacency found nothing, try the
+    // "참석자" label block at the top of the page. This must run before the
+    // header-anchor column scan and the global grid scan so meeting minutes
+    // never get their body prose scraped.
+    if (resolvedMode !== 'roster' && potentialNames.size === 0) {
+        extractNamesFromParticipantBlock(items).forEach(n => potentialNames.add(n));
+    }
 
     // 1. Find ALL Anchors (headers like 교사명, 성명, etc.)
     const anchors = items.filter(item =>

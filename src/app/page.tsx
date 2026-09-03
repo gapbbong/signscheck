@@ -997,7 +997,11 @@ export default function Home() {
                 {scanActive && (
                 <div style={{
                   position: 'absolute', left: 0, width: '100%',
-                  top: '26%', height: '48%',
+                  // 회의록형: attendees sit in a small block at the top, so the
+                  // lamp only sweeps the upper area — no need to run to the
+                  // bottom. 명렬표형: names fill the page, so sweep most of it.
+                  top: detectedMode === 'signature' ? '8%' : '20%',
+                  height: detectedMode === 'signature' ? '34%' : '56%',
                   overflow: 'hidden',
                   borderTop: '1px solid rgba(96, 165, 250, 0.30)',
                   borderBottom: '1px solid rgba(96, 165, 250, 0.30)',
