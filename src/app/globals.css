@@ -84,3 +84,18 @@ body {
   filter: brightness(1.1);
   transform: translateY(-1px);
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* [Copier] Photocopier-style scan lamp: a bright bar that sweeps top→bottom
+   on a loop. Used while extracting attendees/names, constrained to the middle
+   band of the PDF preview. */
+@keyframes copierScan {
+  0%   { top: -42%; opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}

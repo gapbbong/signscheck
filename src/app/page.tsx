@@ -43,6 +43,9 @@ export default function Home() {
   // is being processed. Advanced stage-by-stage in handleFileSelected, with the
   // slow PDF upload mapped to real byte progress so the curtain speed tracks it.
   const [progress, setProgress] = useState(0);
+  // [Copier] Short label shown under the scan lamp so the user knows which
+  // phase is running (업로드 / 읽기 / 참석자 찾기 / 이름 대조).
+  const [procStage, setProcStage] = useState('');
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   // [Hybrid] Extracted PDF text kept so the user can re-parse with a different
@@ -305,7 +308,8 @@ export default function Home() {
     }
 
     setIsProcessing(true);
-    setProgress(5); // [Curtain] start the curtain just past the top edge
+    setProgress(5);
+    setProcStage('파일 준비 중...');
     setPdfFile(file);
 
     try {
@@ -321,6 +325,7 @@ export default function Home() {
         return;
       }
       setProgress(15);
+      setProcStage('PDF 업로드 중...');
 
       // [New] Upload PDF to Storage — resumable so the curtain tracks real
       // byte progress (this is the slowest step). Map upload 0→100% into the
@@ -351,6 +356,7 @@ export default function Home() {
       // setMeetingData will be handled by the onSnapshot listener triggered by setMeetingId
       console.log("New Meeting Created:", newMeetingId);
       setProgress(80);
+      setProcStage('문서 읽는 중...');
 
       const items = await extractStructuredTextFromPDF(file);
       // [Hybrid] Remember the raw text + auto-detected shape so the user can
@@ -359,6 +365,7 @@ export default function Home() {
       setDetectedMode(detectDocumentType(items));
       setParseMode('auto');
       setProgress(90);
+      setProcStage('참석자 이름 찾는 중...');
 
       const names = extractNamesFromStructuredData(items, 'auto');
 
@@ -370,6 +377,7 @@ export default function Home() {
 
       // [Curtain] The attendee lookup (phone matching) is a network step with no
       // sub-progress, so creep 90→99 while it runs to avoid a "frozen at 90%" look.
+      setProcStage('전화번호 대조 중...');
       let creep = 90;
       const creepTimer = setInterval(() => {
         creep = Math.min(creep + 1, 99);
@@ -396,6 +404,7 @@ export default function Home() {
     } finally {
       setIsProcessing(false);
       setProgress(0);
+      setProcStage('');
     }
   };
 
@@ -430,6 +439,7 @@ export default function Home() {
     if (structuredItems.length === 0) return;
     setParseMode(mode);
     setIsProcessing(true);
+    setProcStage('이름 다시 인식 중...');
     try {
       const names = extractNamesFromStructuredData(structuredItems, mode);
       if (names.length === 0) {
@@ -443,6 +453,7 @@ export default function Home() {
       showToast(`재인식 실패: ${error.message}`, "error");
     } finally {
       setIsProcessing(false);
+      setProcStage('');
     }
   };
 
@@ -964,42 +975,53 @@ export default function Home() {
             {isProcessing && (
               <div style={{
                 position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-                overflow: 'hidden', zIndex: 50, pointerEvents: 'none',
-                backgroundColor: 'rgba(15, 23, 42, 0.25)'
+                overflow: 'hidden', zIndex: 50, pointerEvents: 'none'
               }}>
-                {/* [Curtain] descends top→bottom, its height bound to progress so
-                    its speed tracks real work. Smooth transition glides between
-                    the stage jumps and the live upload progress. */}
+                {/* Light dim so the scan reads as "working" while the document
+                    stays visible underneath. */}
+                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(15, 23, 42, 0.30)' }} />
+
+                {/* [Copier] Scan window limited to the middle band (2단) of the
+                    preview. A photocopier-style lamp bar sweeps top→bottom on a
+                    loop while we find attendees and their names. Replaces the
+                    old full-height curtain. */}
                 <div style={{
-                  position: 'absolute', top: 0, left: 0, width: '100%',
-                  height: `${progress}%`,
-                  transition: 'height 0.45s cubic-bezier(0.4, 0, 0.2, 1)',
-                  background: 'linear-gradient(180deg, #0b1220 0%, #131c33 55%, #1b2748 100%)',
-                  boxShadow: '0 10px 30px rgba(0, 0, 0, 0.5)',
-                  overflow: 'hidden'
+                  position: 'absolute', left: 0, width: '100%',
+                  top: '26%', height: '48%',
+                  overflow: 'hidden',
+                  borderTop: '1px solid rgba(96, 165, 250, 0.30)',
+                  borderBottom: '1px solid rgba(96, 165, 250, 0.30)',
+                  background: 'linear-gradient(180deg, rgba(2, 6, 23, 0) 0%, rgba(30, 41, 59, 0.25) 50%, rgba(2, 6, 23, 0) 100%)'
                 }}>
-                  {/* fabric folds */}
+                  {/* lamp: hot core line + soft halo, sweeps via @keyframes copierScan */}
+                  <div style={{
+                    position: 'absolute', left: 0, width: '100%', height: '38%',
+                    animation: 'copierScan 1.9s cubic-bezier(0.45, 0, 0.55, 1) infinite',
+                    background: 'linear-gradient(180deg, rgba(96,165,250,0) 0%, rgba(147,197,253,0.14) 38%, rgba(224,242,254,0.5) 50%, rgba(147,197,253,0.14) 62%, rgba(96,165,250,0) 100%)'
+                  }}>
+                    <div style={{
+                      position: 'absolute', top: '50%', left: 0, width: '100%', height: '2px',
+                      transform: 'translateY(-50%)',
+                      background: 'linear-gradient(90deg, rgba(96,165,250,0.1), #e0f2fe 45%, #ffffff 50%, #e0f2fe 55%, rgba(96,165,250,0.1))',
+                      boxShadow: '0 0 18px 3px rgba(191, 219, 254, 0.9), 0 0 44px 10px rgba(96, 165, 250, 0.45)'
+                    }} />
+                  </div>
+                  {/* faint scanner-glass rules */}
                   <div style={{
                     position: 'absolute', inset: 0,
-                    background: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 2px, rgba(0,0,0,0.05) 44px, rgba(0,0,0,0.10) 88px)'
-                  }} />
-                  {/* glowing bottom hem */}
-                  <div style={{
-                    position: 'absolute', bottom: 0, left: 0, width: '100%', height: '3px',
-                    background: 'linear-gradient(90deg, #60a5fa, #a855f7)',
-                    boxShadow: '0 0 14px rgba(96, 165, 250, 0.85)'
+                    background: 'repeating-linear-gradient(90deg, rgba(148,163,184,0.05) 0px, rgba(148,163,184,0.05) 1px, transparent 1px, transparent 60px)'
                   }} />
                 </div>
 
-                {/* Label pill — readable whether over the PDF or over the curtain */}
+                {/* Progress pill, just under the scan band */}
                 <div style={{
-                  position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                  textAlign: 'center', padding: '0.7rem 1.4rem', borderRadius: '0.75rem',
-                  backgroundColor: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)',
+                  position: 'absolute', top: '80%', left: '50%', transform: 'translate(-50%, -50%)',
+                  textAlign: 'center', padding: '0.6rem 1.3rem', borderRadius: '0.75rem',
+                  backgroundColor: 'rgba(15, 23, 42, 0.72)', backdropFilter: 'blur(4px)',
                   border: '1px solid rgba(148, 163, 184, 0.25)'
                 }}>
-                  <div style={{ color: '#e2e8f0', fontSize: '1.05rem', fontWeight: 600 }}>참석자 추출 중...</div>
-                  <div style={{ marginTop: '0.35rem', color: '#93c5fd', fontSize: '1.6rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{progress}%</div>
+                  <div style={{ color: '#e2e8f0', fontSize: '0.95rem', fontWeight: 600 }}>{procStage || '참석자 이름 스캔 중...'}</div>
+                  <div style={{ marginTop: '0.3rem', color: '#93c5fd', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{progress}%</div>
                 </div>
               </div>
             )}
