@@ -1032,12 +1032,26 @@ export default function Home() {
                     otherwise (upload phase). */}
                 <div style={{
                   position: 'absolute', top: scanActive ? '80%' : '50%', left: '50%', transform: 'translate(-50%, -50%)',
-                  textAlign: 'center', padding: '0.6rem 1.3rem', borderRadius: '0.75rem',
+                  textAlign: 'center', padding: '0.7rem 1.3rem', borderRadius: '0.75rem', minWidth: '15rem',
                   backgroundColor: 'rgba(15, 23, 42, 0.72)', backdropFilter: 'blur(4px)',
                   border: '1px solid rgba(148, 163, 184, 0.25)'
                 }}>
                   <div style={{ color: '#e2e8f0', fontSize: '0.95rem', fontWeight: 600 }}>{procStage || (scanActive ? '참석자 이름 스캔 중...' : '처리 중...')}</div>
-                  <div style={{ marginTop: '0.3rem', color: '#93c5fd', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{progress}%</div>
+                  {scanActive ? (
+                    <div style={{ marginTop: '0.3rem', color: '#93c5fd', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{progress}%</div>
+                  ) : (
+                    // Upload phase — a real progress bar rather than a bare number.
+                    <div style={{
+                      marginTop: '0.55rem', height: '8px', width: '100%', borderRadius: '999px',
+                      backgroundColor: 'rgba(148, 163, 184, 0.22)', overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        height: '100%', width: `${Math.max(progress, 3)}%`, borderRadius: '999px',
+                        background: 'linear-gradient(90deg, #60a5fa, #a855f7)',
+                        transition: 'width 0.35s cubic-bezier(0.4, 0, 0.2, 1)'
+                      }} />
+                    </div>
+                  )}
                 </div>
               </div>
             )}
