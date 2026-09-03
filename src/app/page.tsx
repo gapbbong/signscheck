@@ -46,6 +46,10 @@ export default function Home() {
   // [Copier] Short label shown under the scan lamp so the user knows which
   // phase is running (업로드 / 읽기 / 참석자 찾기 / 이름 대조).
   const [procStage, setProcStage] = useState('');
+  // [Copier] The scan lamp only sweeps while we are actually reading the
+  // document / matching names — not during the plain byte upload, where the
+  // percentage alone carries the progress.
+  const [scanActive, setScanActive] = useState(false);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
 
   // [Hybrid] Extracted PDF text kept so the user can re-parse with a different
@@ -357,6 +361,7 @@ export default function Home() {
       console.log("New Meeting Created:", newMeetingId);
       setProgress(80);
       setProcStage('문서 읽는 중...');
+      setScanActive(true); // upload done — start the copier sweep
 
       const items = await extractStructuredTextFromPDF(file);
       // [Hybrid] Remember the raw text + auto-detected shape so the user can
@@ -405,6 +410,7 @@ export default function Home() {
       setIsProcessing(false);
       setProgress(0);
       setProcStage('');
+      setScanActive(false);
     }
   };
 
@@ -440,6 +446,7 @@ export default function Home() {
     setParseMode(mode);
     setIsProcessing(true);
     setProcStage('이름 다시 인식 중...');
+    setScanActive(true);
     try {
       const names = extractNamesFromStructuredData(structuredItems, mode);
       if (names.length === 0) {
@@ -454,6 +461,7 @@ export default function Home() {
     } finally {
       setIsProcessing(false);
       setProcStage('');
+      setScanActive(false);
     }
   };
 
@@ -983,8 +991,10 @@ export default function Home() {
 
                 {/* [Copier] Scan window limited to the middle band (2단) of the
                     preview. A photocopier-style lamp bar sweeps top→bottom on a
-                    loop while we find attendees and their names. Replaces the
-                    old full-height curtain. */}
+                    loop while we read the document and find attendee names.
+                    Hidden during the plain byte upload — the percentage alone
+                    carries that phase. Replaces the old full-height curtain. */}
+                {scanActive && (
                 <div style={{
                   position: 'absolute', left: 0, width: '100%',
                   top: '26%', height: '48%',
@@ -1012,15 +1022,17 @@ export default function Home() {
                     background: 'repeating-linear-gradient(90deg, rgba(148,163,184,0.05) 0px, rgba(148,163,184,0.05) 1px, transparent 1px, transparent 60px)'
                   }} />
                 </div>
+                )}
 
-                {/* Progress pill, just under the scan band */}
+                {/* Progress pill — under the scan band while scanning, centered
+                    otherwise (upload phase). */}
                 <div style={{
-                  position: 'absolute', top: '80%', left: '50%', transform: 'translate(-50%, -50%)',
+                  position: 'absolute', top: scanActive ? '80%' : '50%', left: '50%', transform: 'translate(-50%, -50%)',
                   textAlign: 'center', padding: '0.6rem 1.3rem', borderRadius: '0.75rem',
                   backgroundColor: 'rgba(15, 23, 42, 0.72)', backdropFilter: 'blur(4px)',
                   border: '1px solid rgba(148, 163, 184, 0.25)'
                 }}>
-                  <div style={{ color: '#e2e8f0', fontSize: '0.95rem', fontWeight: 600 }}>{procStage || '참석자 이름 스캔 중...'}</div>
+                  <div style={{ color: '#e2e8f0', fontSize: '0.95rem', fontWeight: 600 }}>{procStage || (scanActive ? '참석자 이름 스캔 중...' : '처리 중...')}</div>
                   <div style={{ marginTop: '0.3rem', color: '#93c5fd', fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em' }}>{progress}%</div>
                 </div>
               </div>
