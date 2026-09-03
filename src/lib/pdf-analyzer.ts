@@ -82,13 +82,148 @@ export function detectHeaderDeltas(items: PDFTextItem[]): HeaderDelta[] {
     return deltas;
 }
 
+// 2D affine matrix helpers ([a,b,c,d,e,f], same layout as PDF/pdf.js).
+const matMul = (m: number[], n: number[]): number[] => [
+    m[0] * n[0] + m[2] * n[1],
+    m[1] * n[0] + m[3] * n[1],
+    m[0] * n[2] + m[2] * n[3],
+    m[1] * n[2] + m[3] * n[3],
+    m[0] * n[4] + m[2] * n[5] + m[4],
+    m[1] * n[4] + m[3] * n[5] + m[5],
+];
+const matApply = (m: number[], x: number, y: number): [number, number] =>
+    [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
+
+export interface OpsConst {
+    save: number; restore: number; transform: number;
+    constructPath: number; moveTo: number; lineTo: number;
+    curveTo: number; rectangle: number; closePath: number;
+}
+
+/**
+ * Pull the X positions of vertical ruling lines (table column borders) out of a
+ * page's operator list. Coordinates come back in the same user space as
+ * getTextContent item transforms, so a name's X can be bracketed by two borders
+ * to get its exact cell. Returns sorted, de-duplicated X values.
+ *
+ * Best-effort: any parsing hiccup yields [] and callers fall back to spacing
+ * heuristics.
+ */
+export interface ColumnRule { x: number; y0: number; y1: number; }
+
+export function extractColumnRules(
+    fnArray: number[],
+    argsArray: any[],
+    OPS: OpsConst,
+    minSpan = 8,
+    pageWidth = 700,
+): ColumnRule[] {
+    try {
+        const rules: ColumnRule[] = [];
+        let ctm = [1, 0, 0, 1, 0, 0];
+        const stack: number[][] = [];
+
+        const edge = (x: number, y0: number, y1: number) => {
+            const [ax, ay0] = matApply(ctm, x, y0);
+            const [, ay1] = matApply(ctm, x, y1);
+            if (Math.abs(ay0 - ay1) >= minSpan) rules.push({ x: ax, y0: Math.min(ay0, ay1), y1: Math.max(ay0, ay1) });
+        };
+        const seg = (x1: number, y1: number, x2: number, y2: number) => {
+            const [ax, ay] = matApply(ctm, x1, y1);
+            const [bx, by] = matApply(ctm, x2, y2);
+            if (Math.abs(ax - bx) <= 1.5 && Math.abs(ay - by) >= minSpan) {
+                rules.push({ x: (ax + bx) / 2, y0: Math.min(ay, by), y1: Math.max(ay, by) });
+            }
+        };
+
+        for (let i = 0; i < fnArray.length; i++) {
+            const fn = fnArray[i];
+            const args = argsArray[i];
+            if (fn === OPS.save) stack.push(ctm.slice());
+            else if (fn === OPS.restore) { if (stack.length) ctm = stack.pop()!; }
+            else if (fn === OPS.transform) ctm = matMul(ctm, args as number[]);
+            else if (fn === OPS.constructPath) {
+                // pdf.js ≥ v4: args = [flags, [packedCoords], bbox(len 4)].
+                // The bbox already bounds the sub-path — for the axis-aligned
+                // cell rectangles these table PDFs draw, its left/right edges
+                // are exactly the column borders.
+                const bbox = args?.[2];
+                if (bbox && bbox.length === 4) {
+                    const [x0, y0, x1, y1] = bbox;
+                    const wide = Math.abs(x1 - x0) > pageWidth * 0.7;
+                    if (!wide && Math.abs(y1 - y0) >= minSpan) {
+                        edge(x0, y0, y1);
+                        edge(x1, y0, y1);
+                    }
+                } else if (Array.isArray(args?.[0])) {
+                    // Older shape: [opsArray, coordsArray].
+                    const subOps: number[] = args[0];
+                    const coords: number[] = Array.from(args[1] ?? []);
+                    let ci = 0, cx = 0, cy = 0, sx = 0, sy = 0;
+                    for (const op of subOps) {
+                        if (op === OPS.moveTo) { cx = coords[ci++]; cy = coords[ci++]; sx = cx; sy = cy; }
+                        else if (op === OPS.lineTo) { const nx = coords[ci++], ny = coords[ci++]; seg(cx, cy, nx, ny); cx = nx; cy = ny; }
+                        else if (op === OPS.curveTo) { ci += 4; cx = coords[ci++]; cy = coords[ci++]; }
+                        else if (op === OPS.rectangle) {
+                            const x = coords[ci++], y = coords[ci++], rw = coords[ci++], rh = coords[ci++];
+                            seg(x, y, x, y + rh); seg(x + rw, y, x + rw, y + rh);
+                            cx = x; cy = y; sx = x; sy = y;
+                        } else if (op === OPS.closePath) { seg(cx, cy, sx, sy); cx = sx; cy = sy; }
+                    }
+                }
+            }
+        }
+
+        return rules;
+    } catch {
+        return [];
+    }
+}
+
+/** Column border X positions crossing row `y`, sorted & de-duplicated. */
+export function bordersAtY(rules: ColumnRule[], y: number, slack = 4): number[] {
+    const xs = rules
+        .filter(r => r.y0 - slack <= y && r.y1 + slack >= y)
+        .map(r => r.x)
+        .sort((a, b) => a - b);
+    const out: number[] = [];
+    for (const x of xs) if (!out.length || x - out[out.length - 1] > 3) out.push(x);
+    return out;
+}
+
+/**
+ * Given a name's X extent and the row's column borders, return the signing
+ * cell (the cell immediately right of the name's cell) as centre + width.
+ * Returns null when the borders don't sensibly bracket the name.
+ */
+export function signingCellFromBorders(
+    nameMinX: number,
+    nameMaxX: number,
+    borders: number[],
+): { center: number; width: number } | null {
+    if (borders.length < 3) return null;
+    const slack = 6;
+    // name cell: last border at/left of the name start, first border at/right of the name end
+    const left = [...borders].reverse().find(b => b <= nameMinX + slack);
+    const rightIdx = borders.findIndex(b => b >= nameMaxX - slack);
+    if (left === undefined || rightIdx === -1) return null;
+    const right = borders[rightIdx];
+    if (right - left < 8 || right - left > 400) return null; // not a real cell
+    const nextRight = borders[rightIdx + 1];
+    if (nextRight === undefined) return null; // name is in the last column — no cell to its right
+    const w = nextRight - right;
+    if (w < 8 || w > 400) return null;
+    return { center: (right + nextRight) / 2, width: w };
+}
+
 /**
  * Finds the position of a specific name within grouped rows
  */
 export function findNamePosition(
     targetName: string,
     rows: Record<number, PDFTextItem[]>,
-    headerDeltas: HeaderDelta[]
+    headerDeltas: HeaderDelta[],
+    columnRules: ColumnRule[] = [],
 ) {
     const cleanTarget = normalizeText(targetName);
     const namePattern = new RegExp(cleanTarget.split('').join('.*'));
@@ -137,42 +272,49 @@ export function findNamePosition(
             let sigWidth: number | undefined;
             const rowSorted = rowByX;
 
-            // Fallback estimate when there is neither a signature cell nor a
-            // header delta to anchor to (e.g. 회의록형: a row of "name | blank |
-            // name | blank" where the blank is the signing cell). Estimate one
-            // cell width from the spacing of the other names on the row and put
-            // the signature one cell to the right of this name — consistent for
-            // every name including the last one.
             let finalDelta: number;
-            const ROW_LABELS = new Set(['참석자', '참석', '참여자', '출석자', '참석위원', '성명', '서명', '장소', '일시']);
-            const nameStarts = Array.from(new Set(
-                rowSorted
-                    .filter(i => {
-                        const s = normalizeText(i.str);
-                        return s.length >= 2 && s.length <= 4 && /[가-힣]/.test(s) && !ROW_LABELS.has(s);
-                    })
-                    .map(i => Math.round(i.transform[4]))
-            )).sort((a, b) => a - b);
 
-            let cellW = 0;
-            if (nameStarts.length >= 2) {
-                const gaps = nameStarts.slice(1).map((x, k) => x - nameStarts[k]).filter(g => g > 8).sort((a, b) => a - b);
-                if (gaps.length) cellW = gaps[Math.floor(gaps.length / 2)] / 2; // name+blank alternate
-            }
+            // Best: the real table borders on this row. Bracket the name
+            // between two column rules and put the signature in the exact next
+            // cell.
+            const cellFromBorders = signingCellFromBorders(minX, maxX, bordersAtY(columnRules, avgY));
 
-            if (cellW > 10) {
-                const signCenter = minX + cellW * 1.5; // centre of the cell after the name
-                finalDelta = signCenter - nameCenter;
-                sigWidth = cellW * 0.9;
+            if (cellFromBorders) {
+                finalDelta = cellFromBorders.center - nameCenter;
+                sigWidth = cellFromBorders.width * 0.94;
             } else {
-                // Couldn't read the row structure — modest push to the right.
-                const nextCell = rowSorted.find(i => i.transform[4] > maxX + 2 && !targetItems.includes(i as any));
-                if (nextCell) {
-                    const gapEnd = Math.min(nextCell.transform[4] - 3, maxX + 95);
-                    finalDelta = (maxX + gapEnd) / 2 - nameCenter;
-                    sigWidth = Math.max(gapEnd - maxX, 28);
+                // No borders — estimate one cell width from the LOCAL spacing of
+                // this name to its row neighbours (handles non-uniform columns
+                // better than a single row-wide average). Layout assumed:
+                // "name | blank | name | blank …", blank = signing cell.
+                const ROW_LABELS = new Set(['참석자', '참석', '참여자', '출석자', '참석위원', '성명', '서명', '장소', '일시']);
+                const nameXs = Array.from(new Set(
+                    rowSorted
+                        .filter(i => {
+                            const s = normalizeText(i.str);
+                            return s.length >= 2 && s.length <= 4 && /[가-힣]/.test(s) && !ROW_LABELS.has(s);
+                        })
+                        .map(i => Math.round(i.transform[4]))
+                )).sort((a, b) => a - b);
+
+                const selfIdx = nameXs.findIndex(x => Math.abs(x - minX) <= 3);
+                const rightGap = selfIdx >= 0 && nameXs[selfIdx + 1] !== undefined ? nameXs[selfIdx + 1] - nameXs[selfIdx] : 0;
+                const leftGap = selfIdx > 0 ? nameXs[selfIdx] - nameXs[selfIdx - 1] : 0;
+                const pairGap = rightGap || leftGap; // distance between adjacent names ≈ 2 cells
+                const cellW = pairGap ? pairGap / 2 : 0;
+
+                if (cellW > 10) {
+                    finalDelta = (minX + cellW * 1.5) - nameCenter; // centre of the cell after the name
+                    sigWidth = cellW * 0.9;
                 } else {
-                    finalDelta = Math.max(w, 20) + 34;
+                    const nextCell = rowSorted.find(i => i.transform[4] > maxX + 2 && !targetItems.includes(i as any));
+                    if (nextCell) {
+                        const gapEnd = Math.min(nextCell.transform[4] - 3, maxX + 95);
+                        finalDelta = (maxX + gapEnd) / 2 - nameCenter;
+                        sigWidth = Math.max(gapEnd - maxX, 28);
+                    } else {
+                        finalDelta = Math.max(w, 20) + 34;
+                    }
                 }
             }
 

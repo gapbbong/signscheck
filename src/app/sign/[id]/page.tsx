@@ -10,6 +10,8 @@ import {
     groupItemsIntoRows,
     detectHeaderDeltas,
     findNamePosition,
+    extractColumnRules,
+    ColumnRule,
     PDFTextItem
 } from '@/lib/pdf-analyzer';
 
@@ -139,7 +141,12 @@ export default function SignPage() {
                                             // Analysis using centralized pdf-analyzer logic (v0.8.5)
                                             const rows = groupItemsIntoRows(items as PDFTextItem[]);
                                             const headerDeltas = detectHeaderDeltas(items as PDFTextItem[]);
-                                            const foundPos = findNamePosition(data.name, rows, headerDeltas);
+                                            let columnRules: ColumnRule[] = [];
+                                            try {
+                                                const opList = await page.getOperatorList();
+                                                columnRules = extractColumnRules(opList.fnArray as unknown as number[], opList.argsArray, (pdfjsLib as any).OPS, 8, viewport.width);
+                                            } catch { /* text-only PDF — heuristic fallback */ }
+                                            const foundPos = findNamePosition(data.name, rows, headerDeltas, columnRules);
 
                                             setNamePos(foundPos);
                                             setIsCanvasLoading(false);

@@ -8,6 +8,8 @@ import {
     groupItemsIntoRows,
     detectHeaderDeltas,
     findNamePosition,
+    extractColumnRules,
+    ColumnRule,
     PDFTextItem
 } from '@/lib/pdf-analyzer';
 import { useNotification } from '@/lib/NotificationContext';
@@ -129,6 +131,17 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 const textContent = await page.getTextContent();
                 const unscaledViewport = page.getViewport({ scale: 1.0 });
 
+                // Table column borders (exact cell geometry) from the page's
+                // vector ops. Empty for text-only PDFs — findNamePosition then
+                // falls back to spacing heuristics.
+                let columnRules: ColumnRule[] = [];
+                try {
+                    const opList = await page.getOperatorList();
+                    columnRules = extractColumnRules(opList.fnArray as unknown as number[], opList.argsArray, (pdfjsLib as any).OPS, 8, unscaledViewport.width);
+                } catch (e) {
+                    console.warn('column-rule extraction failed', e);
+                }
+
                 const rawItems = textContent.items as any[];
                 setRawTextItems(rawItems.filter(i => i.transform[5] > 300 && i.transform[5] < 800));
 
@@ -146,7 +159,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 const coords: Record<string, { x: number, y: number, w: number, pageHeight: number, individualDeltaXPdf?: number, sigWidthPdf?: number }> = {};
 
                 for (const attendee of attendees) {
-                    const foundPos = (findNamePosition(attendee.name, rows, headerDeltas) as unknown) as { x: number, y: number, w: number, delta: number, sigWidth?: number };
+                    const foundPos = (findNamePosition(attendee.name, rows, headerDeltas, columnRules) as unknown) as { x: number, y: number, w: number, delta: number, sigWidth?: number };
                     if (foundPos) {
                         coords[attendee.name] = {
                             x: foundPos.x,

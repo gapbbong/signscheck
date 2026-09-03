@@ -1,5 +1,58 @@
 import { describe, it, expect } from 'vitest';
+import { extractColumnRules, bordersAtY, signingCellFromBorders } from './pdf-analyzer';
+
+const OPS = {
+    save: 10, restore: 11, transform: 12,
+    constructPath: 91, moveTo: 13, lineTo: 14, curveTo: 15, rectangle: 19, closePath: 18,
+};
+// pdf.js ≥ v4 constructPath: [flags, [packedCoords], bbox]. Only the bbox matters here.
+const cp = (x0: number, y0: number, x1: number, y1: number) => [28, [{}], [x0, y0, x1, y1]];
 import { normalizeText, groupItemsIntoRows, detectHeaderDeltas, findNamePosition } from './pdf-analyzer';
+
+describe('column borders', () => {
+    it('extractColumnRules reads cell rectangles into vertical borders, skipping the page box', () => {
+        const fn = [OPS.constructPath, OPS.constructPath, OPS.constructPath];
+        const args = [
+            cp(0, 0, 595, 841),        // full-page clip — ignored
+            cp(99, 717, 141, 739),     // name cell
+            cp(141, 717, 183, 739),    // signing cell
+        ];
+        const rules = extractColumnRules(fn, args, OPS, 8, 595);
+        expect(bordersAtY(rules, 728)).toEqual([99, 141, 183]);
+        expect(bordersAtY(rules, 400)).toEqual([]); // nothing crosses that row
+    });
+
+    it('extractColumnRules honours the CTM', () => {
+        const fn = [OPS.save, OPS.transform, OPS.constructPath, OPS.restore];
+        const args = [null, [1, 0, 0, 1, 50, 0], cp(100, 0, 100, 40), null];
+        expect(extractColumnRules(fn, args, OPS).map(r => r.x)).toEqual([150, 150]);
+    });
+
+    it('signingCellFromBorders returns the cell right of the name cell', () => {
+        const borders = [90, 150, 210, 270, 330];
+        const cell = signingCellFromBorders(155, 185, borders)!;
+        expect(cell.center).toBe(240);
+        expect(cell.width).toBe(60);
+    });
+
+    it('signingCellFromBorders bails when the name is in the last column', () => {
+        expect(signingCellFromBorders(155, 185, [90, 150, 210])).toBeNull();
+    });
+
+    it('findNamePosition uses exact borders when present (non-uniform columns)', () => {
+        // mirrors the real 협의록: 이갑종 column is wider than 이상수 column
+        const mk = (str: string, x: number, y: number) => ({ str, transform: [1, 0, 0, 1, x, y] as number[], width: 31 });
+        const rows = { 724: [mk('이상수', 104, 724), mk('이갑종', 363, 724)] };
+        const rules = [
+            { x: 99, y0: 718, y1: 739 }, { x: 141, y0: 718, y1: 739 }, { x: 183, y0: 718, y1: 739 },
+            { x: 358, y0: 718, y1: 739 }, { x: 406, y0: 718, y1: 739 }, { x: 448, y0: 718, y1: 739 },
+        ];
+        const a = findNamePosition('이상수', rows as any, [], rules) as any;
+        const b = findNamePosition('이갑종', rows as any, [], rules) as any;
+        expect(a.x + a.w / 2 + a.delta).toBeCloseTo(162, 0);  // (141+183)/2
+        expect(b.x + b.w / 2 + b.delta).toBeCloseTo(427, 0);  // (406+448)/2
+    });
+});
 
 describe('PDF Analyzer Logic', () => {
     describe('normalizeText', () => {
