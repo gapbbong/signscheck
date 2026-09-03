@@ -49,20 +49,27 @@ describe('extractNamesFromStructuredData', () => {
         );
     });
 
-    it('회의록형: handles a letter-spaced label split into fragments ("참" "석" "자")', () => {
+    it('회의록형: fragmented label ("참" "석" "자") merged-centred over two name rows', () => {
+        // The "참 석 자" cell is merged over both attendee rows, so PDF.js gives
+        // it a single baseline that groups with the LOWER row — the upper row of
+        // names sits above the label and must still be picked up.
         const items: PDFTextItem[] = [
-            item('일', 70, 712), item('시', 90, 712),
-            item('2026년 8월20일(목) 13:10~13:30', 130, 712),
-            item('참', 70, 695), item('석', 88, 695), item('자', 106, 695),
+            item('일', 70, 714), item('시', 90, 714),
+            item('2026년 8월20일(목) 13:10~13:30', 130, 714), item('장 소', 430, 714),
+            // upper attendee row — above the label baseline
             item('이상수', 140, 697), item('정필구', 210, 697), item('김민경', 280, 697),
-            item('이갑종', 360, 697),
-            item('최지은', 140, 679), item('황철현', 210, 679),
-            item('협의내용', 70, 655),
-            item('교과별 성취율이 골고루 분포되도록 출제한다', 140, 655),
+            item('이갑종', 360, 697), item('김웅환', 430, 697),
+            // label baseline groups with the lower attendee row
+            item('참', 70, 680), item('석', 88, 680), item('자', 106, 680),
+            item('최지은', 140, 680), item('황철현', 210, 680), item('이효상', 280, 680),
+            item('장효윤', 360, 680),
+            // body
+            item('협의내용', 70, 658),
+            item('교과별 성취율이 골고루 분포되도록 출제한다', 140, 658),
         ];
         const names = extractNamesFromStructuredData(items);
         expect(names.sort()).toEqual(
-            ['이상수', '정필구', '김민경', '이갑종', '최지은', '황철현'].sort()
+            ['이상수', '정필구', '김민경', '이갑종', '김웅환', '최지은', '황철현', '이효상', '장효윤'].sort()
         );
     });
 

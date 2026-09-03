@@ -164,25 +164,46 @@ function extractNamesFromParticipantBlock(items: PDFTextItem[]): string[] {
         if (labelRowIdx >= 0) break;
     }
     if (labelRowIdx < 0) return [];
+    const labelY = rows[labelRowIdx].y;
 
-    // Walk the label row and the rows below it (a few at most), taking only the
-    // cells to the right of the label. Stop at the first body row.
-    const names: string[] = [];
-    for (let idx = labelRowIdx; idx < rows.length && idx <= labelRowIdx + 5; idx++) {
+    // Pull the clean 2–4 char names from the cells to the right of the label on
+    // one row. Returns null if the row is body prose / a section header.
+    const rowNames = (idx: number): string[] | null => {
         const rightCells = rows[idx].cells.filter(c => c.x > labelEndX - 2);
-        if (rightCells.length === 0) continue;
-
-        if (rightCells.some(c => isBodyCell(c.str))) {
-            if (names.length > 0) break; // block ended
-            continue;                    // a header row above the names — skip
-        }
-
+        if (rightCells.length === 0) return [];
+        if (rightCells.some(c => isBodyCell(c.str))) return null;
+        const out: string[] = [];
         rightCells.forEach(c => {
             const s = c.str.replace(/\s+/g, '');
             if (s.length >= 2 && s.length <= 4 && !BLOCK_NOISE.has(s)) {
-                extractNamesFromRawString(c.str).forEach(n => names.push(n));
+                extractNamesFromRawString(c.str).forEach(n => out.push(n));
             }
         });
+        return out;
+    };
+
+    const names: string[] = [];
+
+    // The "참석자" cell is usually a merged cell centred over 2+ attendee rows,
+    // so names can sit a row or two ABOVE the label baseline too. Walk up first
+    // (stop at the first non-name / far row — e.g. the 일시·장소 header row).
+    const above: string[] = [];
+    for (let idx = labelRowIdx - 1; idx >= 0 && labelRowIdx - idx <= 2; idx--) {
+        if (labelY - rows[idx].y > lineH * 3.2) break; // too far up — different block
+        const got = rowNames(idx);
+        if (!got || got.length === 0) break;
+        above.unshift(...got);
+    }
+    names.push(...above);
+
+    // Label row, then down — stop at the first body row once we have names.
+    for (let idx = labelRowIdx; idx < rows.length && idx <= labelRowIdx + 5; idx++) {
+        const got = rowNames(idx);
+        if (got === null) {
+            if (names.length > 0) break;
+            continue;
+        }
+        names.push(...got);
     }
 
     return names;
