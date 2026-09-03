@@ -95,7 +95,11 @@ export function findNamePosition(
 
     let foundPos: { x: number, y: number, w: number, delta: number, sigWidth?: number } | null = null;
 
-    Object.entries(rows).forEach(([_, rowItems]) => {
+    // Rows top → bottom, so the first match is the attendee row, not a later
+    // body line that happens to contain the same characters in order.
+    const rowEntries = Object.entries(rows).sort((a, b) => b[1][0].transform[5] - a[1][0].transform[5]);
+    for (const [, rowItems] of rowEntries) {
+        if (foundPos) break;
         const rowStr = rowItems.map(i => i.str).join('');
         const rowClean = normalizeText(rowStr);
 
@@ -110,24 +114,42 @@ export function findNamePosition(
             const nameCenter = (minX + maxX) / 2;
             const avgY = targetItems.reduce((acc, i) => acc + i.transform[5], 0) / targetItems.length;
 
+            let sigWidth: number | undefined;
+            const rowSorted = [...rowItems].sort((a, b) => a.transform[4] - b.transform[4]);
+
             // Fallback estimate when there is neither a signature cell nor a
             // header delta to anchor to (e.g. 회의록형: names in wide cells with
-            // no 서명 column). Sit the signature just to the right of the name
-            // rather than a fixed 140pt push that overshoots into other columns.
-            let finalDelta = Math.max(w, 24) + 46;
+            // no 서명 column). Drop the signature into the empty cell between
+            // this name and the next cell on the row — far more accurate than a
+            // fixed push that overshoots onto the next name.
+            let finalDelta: number;
+            const nextCell = rowSorted.find(i =>
+                i.transform[4] > maxX + 2 &&
+                !targetItems.includes(i as any)
+            );
+            if (nextCell) {
+                const gapStart = maxX;
+                const gapEnd = Math.min(nextCell.transform[4] - 3, maxX + 95);
+                const cellCenter = (gapStart + gapEnd) / 2;
+                finalDelta = cellCenter - nameCenter;
+                sigWidth = Math.max(gapEnd - gapStart, 28);
+            } else {
+                // Last name on the row — a modest push, no next cell to overrun.
+                finalDelta = Math.max(w, 20) + 34;
+            }
+
             if (headerDeltas.length > 0) {
                 const bestH = headerDeltas.reduce((prev, curr) =>
                     Math.abs(curr.nameX - minX) < Math.abs(prev.nameX - minX) ? curr : prev
                 );
                 finalDelta = bestH.deltaX;
+                sigWidth = undefined;
             }
 
             // Preferred: anchor to the actual signature cell immediately to the
             // right of the name on this row. This gives an exact horizontal
             // offset and a cell width, so the signature box lands inside the
             // real box instead of an oversized guessed area.
-            let sigWidth: number | undefined;
-            const rowSorted = [...rowItems].sort((a, b) => a.transform[4] - b.transform[4]);
             const signItem = rowSorted.find(i =>
                 SIGN_CELL_MARKERS.has(normalizeText(i.str)) && i.transform[4] > maxX - 5
             );
@@ -149,7 +171,7 @@ export function findNamePosition(
 
             foundPos = { x: minX, y: avgY, w: w, delta: finalDelta, sigWidth };
         }
-    });
+    }
 
     return foundPos;
 }

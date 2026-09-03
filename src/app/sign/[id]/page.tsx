@@ -228,10 +228,19 @@ export default function SignPage() {
                 if (p === 1) setRenderScale(scale); // page 1 scale drives the signature overlay
                 const scaledViewport = page.getViewport({ scale });
 
-                canvas.width = scaledViewport.width;
-                canvas.height = scaledViewport.height;
+                // Render at the device pixel ratio so the page is crisp on
+                // high-DPI (mobile) screens instead of an upscaled low-res
+                // bitmap. Backing store is dpr× bigger in both dims; CSS keeps
+                // it at container width (width:100%, height:auto).
+                const dpr = Math.min(window.devicePixelRatio || 1, 3);
+                canvas.width = Math.floor(scaledViewport.width * dpr);
+                canvas.height = Math.floor(scaledViewport.height * dpr);
 
-                await page.render({ canvasContext: context, viewport: scaledViewport }).promise;
+                await page.render({
+                    canvasContext: context,
+                    viewport: scaledViewport,
+                    transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+                }).promise;
                 if (cancelled) return;
             }
         };
