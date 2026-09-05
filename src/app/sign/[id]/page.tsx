@@ -48,6 +48,18 @@ export default function SignPage() {
     const [meetingOffsetY, setMeetingOffsetY] = useState(0);
     const [meetingScale, setMeetingScale] = useState(1.0);
 
+    // [Zoom] Pinch/pan/double-tap zoom for the PDF preview. Implemented by hand
+    // rather than relying on the browser's native pinch-zoom because in-app
+    // browsers (KakaoTalk, etc.) that this link is opened from often disable it.
+    const [zoom, setZoom] = useState(1);
+    const [pan, setPan] = useState({ x: 0, y: 0 });
+    const previewScrollRef = useRef<HTMLDivElement>(null);
+    const zoomValRef = useRef(1);
+    const panValRef = useRef({ x: 0, y: 0 });
+    useEffect(() => { zoomValRef.current = zoom; }, [zoom]);
+    useEffect(() => { panValRef.current = pan; }, [pan]);
+    const resetZoom = () => { setZoom(1); setPan({ x: 0, y: 0 }); };
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pageCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
     const signatureMarkerRef = useRef<HTMLDivElement>(null);
@@ -255,6 +267,81 @@ export default function SignPage() {
         return () => { cancelled = true; };
     }, [pdfDoc, numPages, pdfLoadingError]); // Overlay is a separate div, so no re-render needed on submit
 
+    // Reset zoom whenever a new document loads.
+    useEffect(() => { resetZoom(); }, [pdfDoc]);
+
+    // [Zoom] Native touch listeners (registered once — reads/writes go through
+    // refs so gesture handling doesn't need to re-subscribe on every frame).
+    // Two fingers pinch to scale; one finger pans once zoomed in; a quick
+    // double-tap toggles zoom. touchmove must be non-passive to preventDefault
+    // the page's own scroll/zoom while a gesture is active.
+    useEffect(() => {
+        const el = previewScrollRef.current;
+        if (!el) return;
+
+        const dist = (t: TouchList) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+        const clamp = (z: number) => Math.min(4, Math.max(1, z));
+
+        const gesture = {
+            mode: 'none' as 'none' | 'pinch' | 'pan',
+            startDist: 0, startZoom: 1,
+            startX: 0, startY: 0, startPanX: 0, startPanY: 0,
+            lastTapTime: 0,
+        };
+
+        const onStart = (e: TouchEvent) => {
+            if (e.touches.length === 2) {
+                gesture.mode = 'pinch';
+                gesture.startDist = dist(e.touches);
+                gesture.startZoom = zoomValRef.current;
+            } else if (e.touches.length === 1) {
+                const now = Date.now();
+                if (now - gesture.lastTapTime < 300) {
+                    gesture.lastTapTime = 0;
+                    gesture.mode = 'none';
+                    if (zoomValRef.current > 1) resetZoom(); else setZoom(2.2);
+                    return;
+                }
+                gesture.lastTapTime = now;
+                if (zoomValRef.current > 1) {
+                    gesture.mode = 'pan';
+                    gesture.startX = e.touches[0].clientX;
+                    gesture.startY = e.touches[0].clientY;
+                    gesture.startPanX = panValRef.current.x;
+                    gesture.startPanY = panValRef.current.y;
+                } else {
+                    gesture.mode = 'none'; // not zoomed — let the container scroll normally
+                }
+            }
+        };
+
+        const onMove = (e: TouchEvent) => {
+            if (gesture.mode === 'pinch' && e.touches.length === 2) {
+                e.preventDefault();
+                setZoom(clamp(gesture.startZoom * (dist(e.touches) / gesture.startDist)));
+            } else if (gesture.mode === 'pan' && e.touches.length === 1) {
+                e.preventDefault();
+                setPan({
+                    x: gesture.startPanX + (e.touches[0].clientX - gesture.startX),
+                    y: gesture.startPanY + (e.touches[0].clientY - gesture.startY),
+                });
+            }
+        };
+
+        const onEnd = (e: TouchEvent) => { if (e.touches.length === 0) gesture.mode = 'none'; };
+
+        el.addEventListener('touchstart', onStart, { passive: true });
+        el.addEventListener('touchmove', onMove, { passive: false });
+        el.addEventListener('touchend', onEnd, { passive: true });
+        el.addEventListener('touchcancel', onEnd, { passive: true });
+        return () => {
+            el.removeEventListener('touchstart', onStart);
+            el.removeEventListener('touchmove', onMove);
+            el.removeEventListener('touchend', onEnd);
+            el.removeEventListener('touchcancel', onEnd);
+        };
+    }, []);
+
     // [New] After submit, scroll the signature location into view so the signer sees where it landed
     useEffect(() => {
         if (!submitted || !namePos) return;
@@ -435,24 +522,41 @@ export default function SignPage() {
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
-                <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+                <div style={{ backgroundColor: '#fff', padding: '1.5rem', borderRadius: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '0.8rem', position: 'relative' }}>
                     <label style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#64748b' }}>
                         서명할 문서 확인 (Preview)
                         <span style={{ color: '#ef4444', marginLeft: '8px', fontSize: '0.8rem' }}>
                             {submitted ? "※ 서명 위치가 실제와 약간 차이가 있을 수 있습니다" : "※ 서명란은 페이지 맨 아래에 있습니다"}
                         </span>
+                        {pdfDoc && !pdfLoadingError && (
+                            <span style={{ display: 'block', color: '#94a3b8', fontSize: '0.75rem', marginTop: '2px', fontWeight: 'normal' }}>
+                                손가락 두 개로 확대·축소, 더블탭으로 확대/원복
+                            </span>
+                        )}
                     </label>
-                    <div style={{
-                        width: '100%',
-                        maxHeight: '75vh',
-                        overflowY: 'auto',
-                        backgroundColor: '#f1f5f9',
-                        borderRadius: '0.5rem',
-                        border: '1px solid #e2e8f0',
-                        position: 'relative',
-                        boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)',
-                        padding: (pdfDoc && !pdfLoadingError) ? '0.75rem' : 0,
-                    }}>
+                    <div
+                        ref={previewScrollRef}
+                        style={{
+                            width: '100%',
+                            maxHeight: '75vh',
+                            overflowY: zoom > 1 ? 'hidden' : 'auto',
+                            overflowX: 'hidden',
+                            touchAction: zoom > 1 ? 'none' : 'pan-y',
+                            backgroundColor: '#f1f5f9',
+                            borderRadius: '0.5rem',
+                            border: '1px solid #e2e8f0',
+                            position: 'relative',
+                            boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.08)',
+                            padding: (pdfDoc && !pdfLoadingError) ? '0.75rem' : 0,
+                        }}>
+                        {/* [Zoom] Everything scales/pans together inside this wrapper;
+                            the scroll container above stays fixed-size. */}
+                        <div style={{
+                            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                            transformOrigin: 'center top',
+                            transition: 'transform 0.12s ease-out',
+                            willChange: 'transform',
+                        }}>
                         {/* Canvas Layer - Render every page (scrollable) */}
                         {(pdfDoc && !pdfLoadingError) && Array.from({ length: numPages }).map((_, idx) => (
                             <div
@@ -501,7 +605,7 @@ export default function SignPage() {
                                 )}
                             </div>
                         ))}
-
+                        </div>
                         {/* Fallback Layer - If canvas fails or loading */}
                         {(pdfLoadingError || (!pdfDoc && !isCanvasLoading)) && (
                             <iframe
@@ -518,6 +622,37 @@ export default function SignPage() {
                             </div>
                         )}
                     </div>
+
+                    {/* [Zoom] Floating controls — pinch/double-tap work, but not
+                        every viewer discovers a gesture, so give buttons too. */}
+                    {pdfDoc && !pdfLoadingError && (
+                        <div style={{
+                            position: 'absolute', right: '1.5rem', bottom: '1.5rem', zIndex: 20,
+                            display: 'flex', flexDirection: 'column', gap: '0.4rem',
+                        }}>
+                            {zoom > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={resetZoom}
+                                    style={{ width: '2.2rem', height: '2.2rem', borderRadius: '999px', border: '1px solid #e2e8f0', backgroundColor: 'rgba(255,255,255,0.95)', color: '#334155', fontSize: '0.65rem', fontWeight: 'bold', boxShadow: '0 2px 6px rgba(0,0,0,0.15)', cursor: 'pointer' }}
+                                >{Math.round(zoom * 100)}%</button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setZoom(z => Math.min(4, z + 0.5))}
+                                style={{ width: '2.2rem', height: '2.2rem', borderRadius: '999px', border: '1px solid #e2e8f0', backgroundColor: 'rgba(255,255,255,0.95)', color: '#334155', fontSize: '1.2rem', lineHeight: 1, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', cursor: 'pointer' }}
+                            >＋</button>
+                            <button
+                                type="button"
+                                onClick={() => setZoom(z => {
+                                    const next = Math.max(1, z - 0.5);
+                                    if (next === 1) setPan({ x: 0, y: 0 });
+                                    return next;
+                                })}
+                                style={{ width: '2.2rem', height: '2.2rem', borderRadius: '999px', border: '1px solid #e2e8f0', backgroundColor: 'rgba(255,255,255,0.95)', color: '#334155', fontSize: '1.2rem', lineHeight: 1, boxShadow: '0 2px 6px rgba(0,0,0,0.15)', cursor: 'pointer' }}
+                            >－</button>
+                        </div>
+                    )}
                 </div>
 
                 {/* 2. Attachment (Embedded) - Hide after submission */}
