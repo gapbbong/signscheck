@@ -1,4 +1,5 @@
-import { db } from "./firebase";
+import { db, storage } from "./firebase";
+import { ref, deleteObject } from "firebase/storage";
 import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 
 export interface Meeting {
@@ -74,9 +75,32 @@ export async function updateMeetingAttachment(meetingId: string, attachmentUrl: 
     }
 }
 
-export async function deleteMeeting(meetingId: string) {
+/**
+ * 회의 기록 삭제. Storage에 올라간 PDF·첨부파일도 함께 지운다.
+ * 이미 없는 파일(object-not-found)은 정상으로 보고, 그 밖의 삭제 실패는
+ * 회의 기록 삭제를 막지 않되 실패한 파일 수를 돌려줘서 화면에서 알릴 수 있게 한다.
+ */
+export async function deleteMeeting(meetingId: string): Promise<{ filesFailed: number }> {
+    let filesFailed = 0;
     try {
-        await deleteDoc(doc(db, "meetings", meetingId));
+        const meetingRef = doc(db, "meetings", meetingId);
+        const snap = await getDoc(meetingRef);
+        if (snap.exists()) {
+            const data = snap.data();
+            const urls = [data.pdfUrl, data.attachmentUrl].filter((u): u is string => typeof u === 'string' && u.length > 0);
+            for (const url of urls) {
+                try {
+                    await deleteObject(ref(storage, url));
+                } catch (error: any) {
+                    if (error?.code !== 'storage/object-not-found') {
+                        console.error("Error deleting storage file:", url, error);
+                        filesFailed++;
+                    }
+                }
+            }
+        }
+        await deleteDoc(meetingRef);
+        return { filesFailed };
     } catch (error) {
         console.error("Error deleting meeting:", error);
         throw error;

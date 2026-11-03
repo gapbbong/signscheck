@@ -12,7 +12,7 @@ interface Props {
 
 export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Props) {
     const { user } = useAuth();
-    const { confirm } = useNotification();
+    const { confirm, showToast } = useNotification();
     const [meetings, setMeetings] = useState<Meeting[]>([]);
     const [loading, setLoading] = useState(false);
 
@@ -59,7 +59,8 @@ export default function OverviewPanel({ onSelectMeeting, currentMeetingId }: Pro
         e.stopPropagation();
         const ok = await confirm("정말로 이 회의 기록을 삭제하시겠습니까?\n삭제하면 되돌릴 수 없습니다.");
         if (ok) {
-            await deleteMeeting(meetingId);
+            const { filesFailed } = await deleteMeeting(meetingId);
+            if (filesFailed > 0) showToast(`회의는 삭제했지만 저장된 파일 ${filesFailed}개는 지우지 못했습니다.`, 'error');
             fetchHistory(); // Refresh list
         }
     };
