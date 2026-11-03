@@ -368,11 +368,11 @@ export default function Home() {
       // switch document-type modes later without re-uploading.
       setStructuredItems(items);
       setDetectedMode(detectDocumentType(items));
-      setParseMode('auto');
+      // 업로드 전에 고른 유형(명렬형/회의형)이 있으면 유지, 없으면 자동 감지
       setProgress(90);
       setProcStage('참석자 이름 찾는 중...');
 
-      const names = extractNamesFromStructuredData(items, 'auto');
+      const names = extractNamesFromStructuredData(items, parseMode);
 
       if (names.length === 0) {
         showToast("문서에서 이름을 찾을 수 없습니다.", "error");
@@ -866,44 +866,53 @@ export default function Home() {
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
           <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v1.4.3</span>
-          <a href="/forms/waiver" style={{ fontSize: '0.78rem', color: '#93c5fd', border: '1px solid #475569', padding: '0.2rem 0.55rem', borderRadius: '0.35rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>📝 성적 이의신청 포기원</a>
 
-          {/* [Hybrid] Document-type override, moved into the title bar (compact, no description) */}
-          {detectedMode && pdfFile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: '0.75rem', paddingLeft: '0.75rem', borderLeft: '1px solid #334155' }}>
-              <span style={{ fontSize: '0.72rem', color: '#94a3b8', whiteSpace: 'nowrap' }}>📄 인식</span>
-              <div style={{ display: 'flex', gap: '0.25rem' }}>
-                {([
-                  { key: 'auto', label: '자동' },
-                  { key: 'signature', label: '회의록형' },
-                  { key: 'roster', label: '명렬표형' },
-                ] as { key: ParseMode; label: string }[]).map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => handleChangeParseMode(opt.key)}
-                    disabled={isProcessing}
-                    title={opt.key === 'auto' ? `자동 감지: ${detectedMode === 'signature' ? '회의록형' : '명렬표형'}` : undefined}
-                    style={{
-                      padding: '0.2rem 0.5rem',
-                      borderRadius: '0.35rem',
-                      border: parseMode === opt.key ? '1px solid #3b82f6' : '1px solid #475569',
-                      background: parseMode === opt.key ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
-                      color: parseMode === opt.key ? '#93c5fd' : '#cbd5e1',
-                      fontSize: '0.8rem',
-                      fontWeight: parseMode === opt.key ? 700 : 400,
-                      letterSpacing: '-0.04em',
-                      whiteSpace: 'nowrap',
-                      cursor: isProcessing ? 'default' : 'pointer',
-                      opacity: isProcessing ? 0.6 : 1,
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {/* 문서 유형 선택: 명렬형 / 회의형 / 학생·보호자 서명.
+              파일을 열기 전에는 다음 업로드에 쓸 유형을 고르고, 연 뒤에는 바로 다시 인식한다.
+              같은 유형을 한 번 더 누르면 자동 감지로 돌아간다. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginLeft: '0.75rem', paddingLeft: '0.75rem', borderLeft: '1px solid #334155' }}>
+            {([
+              { key: 'roster', label: '명렬형', hint: '교사 전체가 나열된 명단 (서명 열 없음)' },
+              { key: 'signature', label: '회의형', hint: '참석자 + 서명 열이 있는 회의록' },
+            ] as { key: 'roster' | 'signature'; label: string; hint: string }[]).map(opt => {
+              const effective = parseMode !== 'auto' ? parseMode : (pdfFile ? detectedMode : null);
+              const active = effective === opt.key;
+              const forced = parseMode === opt.key;
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => {
+                    const next: ParseMode = forced ? 'auto' : opt.key;
+                    if (pdfFile) handleChangeParseMode(next); else setParseMode(next);
+                  }}
+                  disabled={isProcessing}
+                  title={`${opt.hint}${pdfFile && !forced && active ? ' · 자동 감지됨' : ''}`}
+                  style={{
+                    padding: '0.2rem 0.55rem',
+                    borderRadius: '0.35rem',
+                    border: active ? '1px solid #3b82f6' : '1px solid #475569',
+                    background: active ? 'rgba(59, 130, 246, 0.25)' : 'transparent',
+                    color: active ? '#93c5fd' : '#cbd5e1',
+                    fontSize: '0.8rem',
+                    fontWeight: active ? 700 : 400,
+                    whiteSpace: 'nowrap',
+                    cursor: isProcessing ? 'default' : 'pointer',
+                    opacity: isProcessing ? 0.6 : 1,
+                    transition: 'all 0.15s'
+                  }}
+                >
+                  {opt.label}
+                </button>
+              );
+            })}
+            <a
+              href="/forms/waiver"
+              title="학생과 보호자가 각각 서명하는 서식 (성적 이의신청 포기원 등)"
+              style={{ padding: '0.2rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #475569', color: '#cbd5e1', fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}
+            >
+              학생·보호자 서명
+            </a>
+          </div>
         </div>
 
         {/* Center: live preview title (only while a document is open) */}
