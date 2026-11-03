@@ -9,7 +9,7 @@ import {
     WaiverParams, defaultParams, parseRoster, signLink, ROLE_LABEL, WaiverRole,
 } from '@/lib/waiver-form';
 import {
-    createWaiverBatch, getWaiverForm, getWaiverRows, getRecentWaiverForms, WaiverStudentRow,
+    createWaiverBatch, getWaiverForm, getWaiverRows, getRecentWaiverForms, WaiverStudentRow, RecentForm,
 } from '@/lib/waiver-service';
 
 const card: React.CSSProperties = { background: 'rgba(30,41,59,0.7)', border: '1px solid #334155', borderRadius: '0.9rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' };
@@ -30,7 +30,7 @@ export default function WaiverHostPage() {
     const [formId, setFormId] = useState<string | null>(null);
     const [rows, setRows] = useState<WaiverStudentRow[]>([]);
     const [onlyPending, setOnlyPending] = useState(false);
-    const [recent, setRecent] = useState<{ id: string; fileName: string; studentCount: number; createdAt: number }[]>([]);
+    const [recent, setRecent] = useState<RecentForm[]>([]);
     const fileRef = useRef<HTMLInputElement>(null);
 
     const roster = useMemo(() => parseRoster(rosterText), [rosterText]);
@@ -123,7 +123,7 @@ export default function WaiverHostPage() {
     return (
         <div style={{ minHeight: '100vh', color: '#e2e8f0', background: '#0f172a' }}>
             <header style={{ padding: '0.8rem 1.5rem', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <Link href="/" style={{ color: '#93c5fd', textDecoration: 'none', fontSize: '0.9rem' }}>← SignsCheck</Link>
+                <Link href="/forms" style={{ color: '#93c5fd', textDecoration: 'none', fontSize: '0.9rem' }}>← 서식 선택</Link>
                 <h1 style={{ fontSize: '1.1rem', margin: 0 }}>성적 이의신청 포기원 · 개인 서식형</h1>
             </header>
 
@@ -139,7 +139,7 @@ export default function WaiverHostPage() {
                             <b style={{ fontSize: '0.9rem' }}>이전에 만든 서식</b>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                                 {recent.map(r => (
-                                    <button key={r.id} style={{ ...btnGhost, borderColor: r.id === formId ? '#3b82f6' : '#475569' }} onClick={() => openForm(r.id)}>
+                                    <button key={r.id} style={{ ...btnGhost, borderColor: r.id === formId ? '#3b82f6' : '#475569' }} onClick={() => (r.formType === 'pdfform' ? (window.location.href = `/forms/pdf?id=${r.id}`) : openForm(r.id))}>
                                         {r.fileName} · {r.createdAt ? new Date(r.createdAt).toLocaleDateString('ko-KR') : ''}
                                     </button>
                                 ))}

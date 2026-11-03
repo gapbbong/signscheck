@@ -906,8 +906,8 @@ export default function Home() {
               );
             })}
             <a
-              href="/forms/waiver"
-              title="학생과 보호자가 각각 서명하는 서식 (성적 이의신청 포기원 등)"
+              href="/forms"
+              title="학생과 보호자가 각각 서명하는 서식 (성적 이의신청 포기원, 가정통신문, 결과보고서 등)"
               style={{ padding: '0.2rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #475569', color: '#cbd5e1', fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap' }}
             >
               학생·보호자 서명

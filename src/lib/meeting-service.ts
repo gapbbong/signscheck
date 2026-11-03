@@ -15,7 +15,7 @@ export interface Meeting {
     signatureOffsetX?: number; // [New] Signature position offset X
     signatureOffsetY?: number; // [New] Signature position offset Y
     signatureScale?: number; // [New] Signature scale
-    formType?: string; // 'waiver' = 개인 서식형 (PDF 회의 목록에서는 제외)
+    formType?: string; // 'waiver' | 'pdfform' = 서식형 (PDF 회의 목록에서는 제외)
     createdAt: any;
 }
 
@@ -155,7 +155,7 @@ export async function getRecentMeetings(hostUid: string): Promise<Meeting[]> {
         const meetings = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-        } as Meeting)).filter(m => m.formType !== 'waiver');
+        } as Meeting)).filter(m => !m.formType);
 
         // Sort by createdAt desc (Firestore Timestamp has toMillis(); guard nulls
         // for docs whose serverTimestamp hasn't resolved yet).

@@ -19,6 +19,7 @@ export interface WaiverRequestRow {
     studentName: string;
     status: 'pending' | 'signed' | 'rejected';
     signerName?: string;
+    choice?: string;
     signedAt?: { toMillis?: () => number } | null;
 }
 
@@ -100,7 +101,7 @@ export async function getWaiverRows(formId: string): Promise<WaiverStudentRow[]>
         const row: WaiverStudentRow = map.get(key) ?? { key, grade: r.grade, classNo: r.classNo, number: r.number, name: r.studentName };
         const req: WaiverRequestRow = {
             id: d.id, role: r.role, pairId: r.pairId, grade: r.grade, classNo: r.classNo, number: r.number,
-            studentName: r.studentName, status: r.status, signerName: r.signerName, signedAt: r.signedAt ?? null,
+            studentName: r.studentName, status: r.status, signerName: r.signerName, choice: r.choice, signedAt: r.signedAt ?? null,
         };
         if (r.role === 'student') row.student = req; else row.guardian = req;
         map.set(key, row);
@@ -108,16 +109,19 @@ export async function getWaiverRows(formId: string): Promise<WaiverStudentRow[]>
     return [...map.values()].sort((a, b) => a.grade - b.grade || a.classNo - b.classNo || a.number - b.number);
 }
 
-export async function getRecentWaiverForms(hostUid: string): Promise<{ id: string; fileName: string; studentCount: number; createdAt: number }[]> {
+export interface RecentForm { id: string; fileName: string; studentCount: number; createdAt: number; formType: 'waiver' | 'pdfform'; }
+
+export async function getRecentWaiverForms(hostUid: string): Promise<RecentForm[]> {
     // 복합 색인이 필요 없도록 hostUid로만 조회하고 클라이언트에서 거른다 (meeting-service와 동일한 이유)
     const snap = await getDocs(query(collection(db, "meetings"), where("hostUid", "==", hostUid)));
     return snap.docs
-        .filter(d => d.data().formType === 'waiver')
+        .filter(d => d.data().formType === 'waiver' || d.data().formType === 'pdfform')
         .map(d => ({
             id: d.id,
             fileName: d.data().fileName as string,
             studentCount: (d.data().studentCount as number) ?? 0,
             createdAt: d.data().createdAt?.toMillis ? d.data().createdAt.toMillis() : 0,
+            formType: d.data().formType as 'waiver' | 'pdfform',
         }))
         .sort((a, b) => b.createdAt - a.createdAt)
         .slice(0, 10);
