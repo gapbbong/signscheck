@@ -866,6 +866,7 @@ export default function Home() {
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
           <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v1.4.3</span>
+          <a href="/forms/waiver" style={{ fontSize: '0.78rem', color: '#93c5fd', border: '1px solid #475569', padding: '0.2rem 0.55rem', borderRadius: '0.35rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>📝 성적 이의신청 포기원</a>
 
           {/* [Hybrid] Document-type override, moved into the title bar (compact, no description) */}
           {detectedMode && pdfFile && (
