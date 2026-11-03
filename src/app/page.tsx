@@ -13,8 +13,8 @@ import { createSignatureRequest } from '@/lib/signature-service';
 import { createMeeting, updateMeetingAttendees, getMeeting, updateMeetingAttachment, updateMeetingHash, updateMeetingSignatureOffset, Meeting } from "@/lib/meeting-service";
 import { useNotification } from '@/lib/NotificationContext';
 import { collection, query, onSnapshot, orderBy, getDocs, where, doc } from 'firebase/firestore';
-import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { uploadToBlob } from '@/lib/blob-storage';
+import { db } from '@/lib/firebase';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 import { canCreateMeeting, incrementMeetingCount } from "@/lib/subscription-service";
 import { logMeetingCreated, logBulkAddUsed, logEvent, logUserLogin } from "@/lib/analytics-service";
@@ -335,22 +335,9 @@ export default function Home() {
       // byte progress (this is the slowest step). Map upload 0→100% into the
       // 15→65 band of the overall curtain.
       console.log("Uploading original PDF to Storage...");
-      const pdfStorageRef = ref(storage, `meetings/${Date.now()}_${file.name}`);
-      const uploadTask = uploadBytesResumable(pdfStorageRef, file);
-      await new Promise<void>((resolve, reject) => {
-        uploadTask.on(
-          'state_changed',
-          (snapshot) => {
-            const pct = snapshot.totalBytes
-              ? snapshot.bytesTransferred / snapshot.totalBytes
-              : 0;
-            setProgress(15 + Math.round(pct * 50));
-          },
-          (error) => reject(error),
-          () => resolve()
-        );
+      const pdfUrl = await uploadToBlob('meetings', file, (pct) => {
+        setProgress(15 + Math.round(pct * 50));
       });
-      const pdfUrl = await getDownloadURL(uploadTask.snapshot.ref);
       console.log("PDF Uploaded, URL:", pdfUrl);
       setProgress(70);
 
@@ -515,9 +502,7 @@ export default function Home() {
     setIsProcessing(true);
     try {
       console.log("Uploading attachment...", file.name);
-      const storageRef = ref(storage, `attachments/${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(snapshot.ref);
+      const url = await uploadToBlob('attachments', file);
       setAttachmentUrl(url);
 
       await updateMeetingAttachment(meetingId, url, file.name);
@@ -618,9 +603,7 @@ export default function Home() {
     try {
       if (attachmentFile) {
         console.log("Uploading attachment...", attachmentFile.name);
-        const storageRef = ref(storage, `attachments/${Date.now()}_${attachmentFile.name}`);
-        const snapshot = await uploadBytes(storageRef, attachmentFile);
-        uploadedAttachmentUrl = await getDownloadURL(snapshot.ref);
+        uploadedAttachmentUrl = await uploadToBlob('attachments', attachmentFile);
 
         // [New] Save Attachment Info to Meeting Doc
         if (currentMeetingId && !currentMeetingId.startsWith('temp_')) {

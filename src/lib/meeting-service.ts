@@ -1,5 +1,5 @@
-import { db, storage } from "./firebase";
-import { ref, deleteObject } from "firebase/storage";
+import { db } from "./firebase";
+import { isBlobUrl, deleteFromBlob } from "./blob-storage";
 import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
 
 export interface Meeting {
@@ -89,13 +89,12 @@ export async function deleteMeeting(meetingId: string): Promise<{ filesFailed: n
             const data = snap.data();
             const urls = [data.pdfUrl, data.attachmentUrl].filter((u): u is string => typeof u === 'string' && u.length > 0);
             for (const url of urls) {
-                try {
-                    await deleteObject(ref(storage, url));
-                } catch (error: any) {
-                    if (error?.code !== 'storage/object-not-found') {
-                        console.error("Error deleting storage file:", url, error);
-                        filesFailed++;
-                    }
+                // 예전 Firebase Storage 주소는 더 이상 접근할 수 없으므로 건너뛴다.
+                if (!isBlobUrl(url)) continue;
+                const ok = await deleteFromBlob(url);
+                if (!ok) {
+                    console.error("Error deleting blob file:", url);
+                    filesFailed++;
                 }
             }
         }

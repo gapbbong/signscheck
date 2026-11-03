@@ -3,8 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '@/lib/firebase';
+import { uploadToBlob } from '@/lib/blob-storage';
 import { useAuth } from '@/lib/auth-context';
 import { useNotification } from '@/lib/NotificationContext';
 import FormStatusPanel from '@/components/FormStatusPanel';
@@ -148,9 +147,7 @@ function PdfFormHost() {
     }, [formId, refresh]);
 
     const upload = async (file: File, tag: string): Promise<string> => {
-        const task = uploadBytesResumable(ref(storage, `meetings/${Date.now()}_${tag}_${file.name}`), file);
-        await new Promise<void>((resolve, reject) => task.on('state_changed', undefined, reject, () => resolve()));
-        return getDownloadURL(task.snapshot.ref);
+        return uploadToBlob('meetings', new File([file], `${tag}_${file.name}`, { type: file.type }));
     };
 
     const canCreate = analyzed.length > 0 && !!layout?.fields.some(f => f.kind === 'sign') &&
@@ -187,7 +184,7 @@ function PdfFormHost() {
         } catch (e) {
             console.error(e);
             const msg = String((e as { code?: string })?.code ?? '').includes('quota')
-                ? 'Firebase Storage 한도 때문에 PDF를 올리지 못했습니다. (요금제/한도 확인 필요)'
+                ? 'PDF를 올리지 못했습니다. 로그인 상태와 파일 크기(20MB 이하)를 확인해 주세요.'
                 : '생성에 실패했습니다. 다시 시도해 주세요.';
             showToast(msg, 'error');
         } finally { setCreating(false); setProgress(''); }
