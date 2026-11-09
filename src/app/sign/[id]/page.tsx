@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { db } from '@/lib/firebase';
+import { exportTrimmed } from '@/components/SignaturePad';
 import { subscribeToConfig, AppConfig } from "@/lib/config-service";
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams } from 'next/navigation';
@@ -26,7 +27,6 @@ export default function SignPage() {
     const [submitted, setSubmitted] = useState(false);
     const [hasSigned, setHasSigned] = useState(false);
     const [showSignModal, setShowSignModal] = useState(false);
-    const [canvasHeight, setCanvasHeight] = useState(200);
     const [txtContent, setTxtContent] = useState<string | null>(null);
 
     // Metadata State
@@ -37,7 +37,7 @@ export default function SignPage() {
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [numPages, setNumPages] = useState(0);
     const [pageHeight, setPageHeight] = useState(0);
-    const [namePos, setNamePos] = useState<{ x: number, y: number, w: number, delta: number } | null>(null);
+    const [namePos, setNamePos] = useState<{ x: number, y: number, w: number, delta: number, sigWidth?: number } | null>(null);
     const [renderScale, setRenderScale] = useState(1);
     const [pdfLoadingError, setPdfLoadingError] = useState(false);
     const [isCanvasLoading, setIsCanvasLoading] = useState(true);
@@ -63,7 +63,6 @@ export default function SignPage() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pageCanvasRefs = useRef<(HTMLCanvasElement | null)[]>([]);
     const signatureMarkerRef = useRef<HTMLDivElement>(null);
-    const thicknessRef = useRef<number>(0); // Store random thickness factor
     const [isDrawing, setIsDrawing] = useState(false);
 
     // Metadata Fetch (IP/Device)
@@ -222,9 +221,9 @@ export default function SignPage() {
         if (showSignModal && canvasRef.current) {
             const canvas = canvasRef.current;
             // Standard internal resolution for consistency
-            canvas.width = 600;
-            canvas.height = 200;
-            setCanvasHeight(200);
+            // 서명이 들어가는 PDF 칸과 같은 비율(2.2:1)
+            canvas.width = 660;
+            canvas.height = 300;
             setHasSigned(false);
         }
     }, [showSignModal]);
@@ -375,16 +374,11 @@ export default function SignPage() {
         setHasSigned(true); // [New] Mark as signed
         const { offsetX, offsetY } = getCoordinates(e, canvas);
 
-        // [Modified] Random thickness 50% ~ 90% (v1.4.2)
-        const baseWidth = 12;
-        // If thicknessRef is not set, init it. Ideally satisfy React purity by using a ref init effect, 
-        // but lazy init in handler is also fine or init in a useEffect.
-        // Let's use a ref specifically for this session.
-        if (!thicknessRef.current) {
-            thicknessRef.current = 0.5 + Math.random() * 0.4; // 0.5 ~ 0.9
-        }
-
-        ctx.lineWidth = baseWidth * thicknessRef.current;
+        // 서명할 때와 제출 후에는 항상 잘 보이는 진한 색·고정 굵기.
+        // 펜 종류 무작위는 PDF 저장 때만 적용된다 (signature-style.ts)
+        ctx.lineWidth = 7;
+        ctx.strokeStyle = '#0f172a';
+        ctx.globalAlpha = 1;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
@@ -441,7 +435,8 @@ export default function SignPage() {
             return;
         }
 
-        const signatureDataUrl = canvasRef.current.toDataURL('image/png'); // Ensure PNG for transparency
+        // PNG(투명 배경)로, 서명 주변 여백을 잘라 서명란에 크게 들어가게 한다
+        const signatureDataUrl = exportTrimmed(canvasRef.current);
 
         localStorage.setItem('lastSignature', signatureDataUrl);
 
@@ -518,7 +513,7 @@ export default function SignPage() {
                             🚀 나도 받아야 할 서명이 있다면? (무료 시작하기)
                         </a>
                         <p style={{ color: '#047857', fontSize: '0.9rem' }}>아래 미리보기에서 서명 위치를 확인하실 수 있습니다. 확인 후 <b>이 창을 닫아주세요.</b></p>
-                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v1.4.2</span>
+                        <span style={{ position: 'absolute', bottom: '5px', right: '10px', fontSize: '0.6rem', color: '#10b981', opacity: 0.5 }}>v{process.env.NEXT_PUBLIC_APP_VERSION}</span>
                     </div>
                 )}
                 {/* 1. Main PDF Preview */}
@@ -585,10 +580,11 @@ export default function SignPage() {
                                     <div ref={signatureMarkerRef} style={{
                                         position: 'absolute',
                                         // Centering logic with 60x15 slimmer size (v1.0.3) + meeting offset applied
-                                        left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (30 * meetingScale * renderScale) + meetingOffsetX}px`,
-                                        top: `${(pageHeight - namePos.y) * renderScale - (12 * meetingScale * renderScale) + meetingOffsetY}px`,
-                                        width: `${60 * meetingScale * renderScale}px`,
-                                        height: `${15 * meetingScale * renderScale}px`,
+                                        // 칸 너비(감지된 값)에 맞춰 큼지막하게, 높이는 비율(2.2:1)로 가운데 정렬
+                                        left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (((namePos.sigWidth ?? 60) * 1.3 * meetingScale * renderScale) / 2) + meetingOffsetX}px`,
+                                        top: `${(pageHeight - namePos.y) * renderScale - ((((namePos.sigWidth ?? 60) * 1.3 / 2.2) * meetingScale * renderScale) / 2) + meetingOffsetY}px`,
+                                        width: `${(namePos.sigWidth ?? 60) * 1.3 * meetingScale * renderScale}px`,
+                                        height: `${((namePos.sigWidth ?? 60) * 1.3 / 2.2) * meetingScale * renderScale}px`,
                                         pointerEvents: 'none',
                                         zIndex: 10,
                                         outline: submitted ? '2px solid #10b981' : 'none',
@@ -598,7 +594,7 @@ export default function SignPage() {
                                     }}>
                                         <img
                                             src={localStorage.getItem('lastSignature') || requestData.signatureUrl || ''}
-                                            style={{ width: '100%', height: '100%', mixBlendMode: 'multiply', opacity: 0.9 }}
+                                            style={{ width: '100%', height: '100%', objectFit: 'contain', mixBlendMode: 'multiply', opacity: 0.9 }}
                                             alt="Sign Preview"
                                         />
                                     </div>
@@ -722,7 +718,7 @@ export default function SignPage() {
                             <button onClick={() => setShowSignModal(false)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }} aria-label="닫기">×</button>
                         </div>
 
-                        <div style={{ backgroundColor: '#f1f5f9', borderRadius: '0.75rem', border: '2px dashed #cbd5e1', overflow: 'hidden', position: 'relative', height: `${canvasHeight}px` }}>
+                        <div style={{ backgroundColor: '#f1f5f9', borderRadius: '0.75rem', border: '2px dashed #cbd5e1', overflow: 'hidden', position: 'relative', aspectRatio: '2.2 / 1' }}>
                             <canvas
                                 ref={canvasRef}
                                 style={{ touchAction: 'none', width: '100%', height: '100%' }}
@@ -742,7 +738,12 @@ export default function SignPage() {
                                             const ctx = canvasRef.current?.getContext('2d');
                                             if (ctx) {
                                                 ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-                                                ctx.drawImage(img, 0, 0);
+                                                // 저장된 서명은 여백이 잘려 있으므로 비율을 지켜 가운데에 맞춘다
+                                                const cv = canvasRef.current!;
+                                                const r = Math.min((cv.width * 0.9) / img.width, (cv.height * 0.9) / img.height);
+                                                const dw = img.width * r, dh = img.height * r;
+                                                ctx.globalAlpha = 1;
+                                                ctx.drawImage(img, (cv.width - dw) / 2, (cv.height - dh) / 2, dw, dh);
                                                 setHasSigned(true);
                                             }
                                         };

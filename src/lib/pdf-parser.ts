@@ -313,7 +313,14 @@ export function extractNamesFromStructuredData(items: PDFTextItem[], mode: Parse
             return a.x - b.x;
         });
 
+        // 표 머리글(교사명/성명…) 위쪽은 문서 제목이므로 이름으로 읽지 않는다
+        // (예: "원클래스 사용자(교사) 자문 및 검증 활동 확인서"의 단어들이 참석자로 잡히는 문제)
+        const headerYByPage = new Map<number, number>();
+        anchors.forEach(a => headerYByPage.set(a.page, Math.max(headerYByPage.get(a.page) ?? -Infinity, a.y)));
+
         sortedItems.forEach(item => {
+            const headerY = headerYByPage.get(item.page);
+            if (headerY !== undefined && item.y > headerY + 2) return;
             if (item.str.length >= 2 && item.str.length <= 4) {
                 const names = extractNamesFromRawString(item.str);
                 names.forEach(n => potentialNames.add(n));

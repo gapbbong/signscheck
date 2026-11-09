@@ -54,11 +54,17 @@ export function detectHeaderDeltas(items: PDFTextItem[]): HeaderDelta[] {
 
     items.forEach(item => {
         // Keyword matching (normalized)
+        // 머리글 칸은 짧다. 제목 속 단어("사용자(교사) … 확인서")가 머리글로 잡히지 않도록
+        // 키워드와 같거나, 키워드로 시작하면서 거의 그 길이일 때만 인정한다.
         const clean = normalizeText(item.str);
-        if (NAME_KEYWORDS.some(kw => normalizeText(kw) === clean || item.str.includes(kw))) {
+        const isHeader = (kw: string) => {
+            const k = normalizeText(kw);
+            return !!k && (clean === k || (clean.startsWith(k) && clean.length <= k.length + 2));
+        };
+        if (NAME_KEYWORDS.some(isHeader)) {
             nameHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || 40 });
         }
-        if (SIGN_KEYWORDS.some(kw => normalizeText(kw) === clean || item.str.includes(kw))) {
+        if (SIGN_KEYWORDS.some(isHeader)) {
             signHeaders.push({ str: item.str, x: item.transform[4], y: item.transform[5], w: item.width || 40 });
         }
     });
@@ -318,7 +324,8 @@ export function findNamePosition(
                 }
             }
 
-            if (headerDeltas.length > 0) {
+            // 실제 표 테두리로 칸을 찾았으면 그 값이 가장 정확하므로 머리글 추정으로 덮어쓰지 않는다
+            if (!cellFromBorders && headerDeltas.length > 0) {
                 const bestH = headerDeltas.reduce((prev, curr) =>
                     Math.abs(curr.nameX - minX) < Math.abs(prev.nameX - minX) ? curr : prev
                 );

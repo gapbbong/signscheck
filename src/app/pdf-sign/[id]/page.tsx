@@ -222,7 +222,11 @@ export default function PdfSignPage() {
                                 ))}
                             </div>
                         )}
-                        <SignaturePad onChange={setSig} />
+                        {/* 서명판 비율 = PDF의 서명 칸 비율 */}
+                        <SignaturePad onChange={setSig} aspect={(() => {
+                            const f = layout.fields.find(x => x.kind === 'sign' && x.role === role);
+                            return f && f.kind === 'sign' && f.h > 0 ? f.w / f.h : 2.2;
+                        })()} />
                         <button onClick={submit} disabled={!canSubmit} style={{ padding: '0.95rem', background: canSubmit ? '#3b82f6' : '#94a3b8', color: '#fff', border: 'none', borderRadius: '0.75rem', fontSize: '1rem', fontWeight: 700, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
                             {submitting ? '제출 중...' : hasChoice && !choice ? '참여 여부를 선택해 주세요' : '서명 제출하기'}
                         </button>

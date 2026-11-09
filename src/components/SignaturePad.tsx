@@ -4,11 +4,14 @@ import React, { useEffect, useRef, useState } from 'react';
 
 interface Props {
     onChange: (dataUrl: string | null) => void;
-    height?: number;
+    /** 서명판 가로:세로 비율. 서명이 들어갈 칸의 비율과 같게 맞춘다 (기본 2.2:1) */
+    aspect?: number;
 }
 
 /** 터치/마우스/펜 모두 지원하는 서명판 (pointer events). 비어 있으면 null을 돌려준다. */
-export default function SignaturePad({ onChange, height = 200 }: Props) {
+export default function SignaturePad({ onChange, aspect = 2.2 }: Props) {
+    const ratio = Math.min(5, Math.max(1.2, aspect));
+    const CW = 660, CH = Math.round(CW / ratio);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const drawing = useRef(false);
     const dirty = useRef(false);
@@ -19,8 +22,8 @@ export default function SignaturePad({ onChange, height = 200 }: Props) {
 
     useEffect(() => {
         const c = canvasRef.current;
-        if (c) { c.width = 600; c.height = 200; }
-    }, []);
+        if (c) { c.width = CW; c.height = CH; }
+    }, [CW, CH]);
 
     const pos = (e: React.PointerEvent<HTMLCanvasElement>) => {
         const c = canvasRef.current!;
@@ -94,7 +97,7 @@ export default function SignaturePad({ onChange, height = 200 }: Props) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            <div style={{ background: '#f1f5f9', border: '2px dashed #cbd5e1', borderRadius: '0.75rem', overflow: 'hidden', height }}>
+            <div style={{ background: '#f1f5f9', border: '2px dashed #cbd5e1', borderRadius: '0.75rem', overflow: 'hidden', aspectRatio: `${ratio}` }}>
                 <canvas
                     ref={canvasRef}
                     style={{ touchAction: 'none', width: '100%', height: '100%', display: 'block' }}
@@ -115,7 +118,7 @@ export default function SignaturePad({ onChange, height = 200 }: Props) {
 const VISIBLE_PEN = { width: 7, color: '#0f172a', alpha: 1 };
 
 /** 서명 획이 있는 부분만 잘라 PNG로 내보낸다. 여백이 없어야 서명란에 크게 들어간다. */
-function exportTrimmed(c: HTMLCanvasElement): string {
+export function exportTrimmed(c: HTMLCanvasElement): string {
     const ctx = c.getContext('2d');
     if (!ctx) return c.toDataURL('image/png');
     const { width, height } = c;

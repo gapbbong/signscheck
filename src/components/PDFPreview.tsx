@@ -43,6 +43,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
     const [offsetX, setOffsetX] = useState(initialOffsetX);
     const [offsetY, setOffsetY] = useState(initialOffsetY);
     const [sigGlobalScale, setSigGlobalScale] = useState(initialScale);
+    // 서명을 칸 안에서 더 큼지막하게: 사용자가 조절하는 크기(sigGlobalScale) 위에 기본 확대를 곱한다
+    const SIG_BOOST = 1.3;
+    const sigScaleEff = sigGlobalScale * SIG_BOOST;
 
     // [New] Oversample the canvas bitmap for crisp text when the document is
     // displayed larger than its native PDF-point size. This ONLY changes the
@@ -361,8 +364,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                         const nameCenter = canvasX + (canvasW / 2);
                         const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
 
-                        const canvasSigWidth = baseBoxW * sigGlobalScale * scale;
-                        const sigBoxHeight = (baseBoxW / 2.2) * sigGlobalScale * scale;
+                        const canvasSigWidth = baseBoxW * sigScaleEff * scale;
+                        const sigBoxHeight = (baseBoxW / 2.2) * sigScaleEff * scale;
 
                         return {
                             x: signTargetCenter - (canvasSigWidth / 2) + offsetX,
@@ -379,8 +382,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 const pdfX = pos.x / scale;
                 const pdfY = pageHeight - (pos.y / scale);
 
-                const boxWidth = baseBoxW * sigGlobalScale;
-                const boxHeight = (baseBoxW / 2.2) * sigGlobalScale;
+                const boxWidth = baseBoxW * sigScaleEff;
+                const boxHeight = (baseBoxW / 2.2) * sigScaleEff;
 
                 const imgW = sigImage.width;
                 const imgH = sigImage.height;
@@ -536,8 +539,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                                 const canvasX = foundCoord.x * scale;
                                 const canvasW = foundCoord.w * scale;
                                 const canvasY = (foundCoord.pageHeight - foundCoord.y) * scale;
-                                const sigBoxHeight = (baseBoxW / 2.2) * sigGlobalScale * scale;
-                                const canvasSigWidth = baseBoxW * sigGlobalScale * scale;
+                                const sigBoxHeight = (baseBoxW / 2.2) * sigScaleEff * scale;
+                                const canvasSigWidth = baseBoxW * sigScaleEff * scale;
 
                                 const nameCenter = canvasX + (canvasW / 2);
                                 const signTargetCenter = nameCenter + (foundCoord.individualDeltaXPdf ?? 140) * scale;
@@ -556,8 +559,8 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                                         position: 'absolute',
                                         top: `${pos.y}px`,
                                         left: `${pos.x}px`,
-                                        width: `${baseBoxW * sigGlobalScale * scale}px`,
-                                        height: `${(baseBoxW / 2.2) * sigGlobalScale * scale}px`,
+                                        width: `${baseBoxW * sigScaleEff * scale}px`,
+                                        height: `${(baseBoxW / 2.2) * sigScaleEff * scale}px`,
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
@@ -571,7 +574,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                                         {hasSigned ? (
                                             <img src={attendee.signatureUrl} alt="Signature" style={{ maxWidth: '100%', maxHeight: '100%', mixBlendMode: 'multiply', pointerEvents: 'none' }} />
                                         ) : (
-                                            <div style={{ fontSize: `${12 * sigGlobalScale * scale}px`, fontWeight: 'bold', color: '#94a3b8', fontFamily: 'Arial, sans-serif', whiteSpace: 'nowrap' }}>
+                                            <div style={{ fontSize: `${12 * sigScaleEff * scale}px`, fontWeight: 'bold', color: '#94a3b8', fontFamily: 'Arial, sans-serif', whiteSpace: 'nowrap' }}>
                                                 {attendee.name}
                                             </div>
                                         )}
