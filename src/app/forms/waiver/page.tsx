@@ -24,7 +24,7 @@ export default function WaiverHostPage() {
 
     const [params, setParams] = useState<WaiverParams>(defaultParams());
     const [rosterText, setRosterText] = useState('');
-    const [requireOrder, setRequireOrder] = useState(true);
+    const requireOrder = false; // 서명 순서 제한 없음
     const [creating, setCreating] = useState(false);
 
     const [formId, setFormId] = useState<string | null>(null);
@@ -44,7 +44,7 @@ export default function WaiverHostPage() {
     const openForm = useCallback(async (id: string) => {
         const f = await getWaiverForm(id);
         if (!f) { showToast('서식을 찾을 수 없습니다.', 'error'); return; }
-        setParams(f.params); setRequireOrder(f.requireOrder); setFormId(id);
+        setParams(f.params); setFormId(id);
         window.history.replaceState(null, '', `?id=${id}`);
         refresh(id);
     }, [refresh, showToast]);
@@ -183,13 +183,6 @@ export default function WaiverHostPage() {
                                 )}
                             </section>
 
-                            <section style={card}>
-                                <b>3. 서명 순서</b>
-                                <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.9rem' }}>
-                                    <input type="checkbox" checked={requireOrder} onChange={e => setRequireOrder(e.target.checked)} />
-                                    학생이 먼저 서명한 뒤에 보호자 서명 링크가 열리게 하기 (권장)
-                                </label>
-                            </section>
 
                             <section style={card}>
                                 <b>미리보기 (서명 칸 위치)</b>

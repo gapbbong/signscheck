@@ -47,7 +47,7 @@ function PdfFormHost() {
     const [analyzing, setAnalyzing] = useState(false);
     const [rosterText, setRosterText] = useState('');
     const [nudges, setNudges] = useState<Record<string, { dx: number; dy: number }>>({});
-    const [requireOrder, setRequireOrder] = useState(true);
+    const requireOrder = false; // 서명 순서 제한 없음
     const [creating, setCreating] = useState(false);
     const [progress, setProgress] = useState('');
 
@@ -309,12 +309,6 @@ function PdfFormHost() {
 
                             {analyzed.length > 0 && (
                                 <>
-                                    <section style={card}>
-                                        <label style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.9rem' }}>
-                                            <input type="checkbox" checked={requireOrder} onChange={e => setRequireOrder(e.target.checked)} />
-                                            학생이 먼저 서명한 뒤에 보호자 서명 링크가 열리게 하기 (권장)
-                                        </label>
-                                    </section>
                                     <button style={{ ...btnPrimary, opacity: creating || !canCreate ? 0.6 : 1 }} disabled={creating || !canCreate} onClick={handleCreate}>
                                         {creating ? progress || '만드는 중...' : `🚀 ${mode === 'common' ? roster.students.length : analyzed.length}명 서명 링크 만들기`}
                                     </button>

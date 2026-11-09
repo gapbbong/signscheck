@@ -82,7 +82,7 @@ export default function FormSignPage() {
 
     const { role, student, params } = data;
     const signed = data.status === 'signed';
-    const waitingForStudent = role === 'guardian' && data.requireOrder && data.pairStatus !== 'signed' && !signed;
+    const waitingForStudent = false; // 서명 순서 제한 없음 (학생/보호자 누구든 먼저 가능)
     const studentSig = role === 'student' ? (sig ?? data.ownSignature) : data.pairSignature;
     const guardianSig = role === 'guardian' ? (sig ?? data.ownSignature) : data.pairSignature;
     const guardianShownName = role === 'guardian' ? (data.ownSignerName || guardianName.trim() || null) : data.pairSignerName;

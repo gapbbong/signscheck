@@ -93,7 +93,7 @@ export default function PdfSignPage() {
         const student = role === 'student' ? own : pair;
         const guardian = role === 'guardian' ? own : pair;
         const signed = own.status === 'signed';
-        const waiting = role === 'guardian' && data.requireOrder && pair?.status !== 'signed' && !signed;
+        const waiting = false; // 서명 순서 제한 없음 (학생/보호자 누구든 먼저 가능)
         const studentSig = role === 'student' ? (sig ?? own.signatureUrl) : student?.signatureUrl ?? null;
         const guardianSig = role === 'guardian' ? (sig ?? own.signatureUrl) : guardian?.signatureUrl ?? null;
         const shownChoice = role === 'student' ? (choice ?? own.choice) : student?.choice ?? null;
@@ -142,8 +142,14 @@ export default function PdfSignPage() {
     };
 
     const download = async () => {
-        if (!viewRef.current) return;
-        const blob = await canvasToPdfBlob(viewRef.current, layout.pageWidth, layout.pageHeight);
+        if (!viewRef.current || !baseRef.current || !view) return;
+        // 화면에는 잘 보이는 색으로 보여주고, 저장하는 PDF에만 펜 종류가 무작위인 서명을 넣는다
+        const out = document.createElement('canvas');
+        await composePage(out, baseRef.current, layout, {
+            studentSig: view.studentSig, guardianSig: view.guardianSig, choice: view.shownChoice, texts: view.texts,
+            highlight: null, naturalInk: true,
+        });
+        const blob = await canvasToPdfBlob(out, layout.pageWidth, layout.pageHeight);
         const a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
         a.download = `${data.title}_${data.studentName}.pdf`;

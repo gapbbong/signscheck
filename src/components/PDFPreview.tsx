@@ -13,6 +13,7 @@ import {
     PDFTextItem
 } from '@/lib/pdf-analyzer';
 import { useNotification } from '@/lib/NotificationContext';
+import { stylizeSignature } from '@/lib/signature-style';
 import { updateMeetingHash, updateMeetingSignatureOffset } from '@/lib/meeting-service';
 
 interface Props {
@@ -343,7 +344,9 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
                 const uniqueId = attendee.id || attendee.phone || `temp-${attendee.name}`;
                 if (!uniqueId) continue;
 
-                const sigImageBytes = await fetch(attendee.signatureUrl).then(res => res.arrayBuffer());
+                // 저장하는 PDF에서만 펜 색·굵기·진하기를 서명마다 무작위로 적용
+                const styledUrl = await stylizeSignature(attendee.signatureUrl);
+                const sigImageBytes = await fetch(styledUrl).then(res => res.arrayBuffer());
                 const sigImage = await pdfDoc.embedPng(sigImageBytes);
 
                 const foundCoord = nameCoordinates[attendee.name];

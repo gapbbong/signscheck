@@ -47,7 +47,7 @@ export default function FormStatusPanel({ title, rows, requireOrder, showChoice,
     return (
         <section style={{ background: 'rgba(30,41,59,0.7)', border: '1px solid #334155', borderRadius: '0.9rem', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'center' }}>
-                <b>서명 현황 — 완료 {done} / {rows.length}명 {requireOrder && <span style={{ color: '#94a3b8', fontWeight: 400, fontSize: '0.8rem' }}>(학생 → 보호자 순서)</span>}</b>
+                <b>서명 현황 — 완료 {done} / {rows.length}명</b>
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                     <button style={btnGhost} onClick={onRefresh}>↻ 새로고침</button>
                     <label style={{ ...btnGhost, display: 'flex', gap: '0.3rem', alignItems: 'center' }}>

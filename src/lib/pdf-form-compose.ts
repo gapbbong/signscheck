@@ -4,6 +4,7 @@
  * 화면에서 본 위치와 저장된 PDF의 위치가 어긋나지 않는다.
  */
 import { FormLayout, FormRole, TextKey } from './pdf-form-detect';
+import { stylizeSignature } from './signature-style';
 
 export interface ComposeValues {
     studentSig?: string | null;
@@ -12,6 +13,8 @@ export interface ComposeValues {
     texts?: Partial<Record<TextKey, string>>;
     /** 지금 서명/선택해야 하는 쪽을 초록 점선으로 안내 */
     highlight?: FormRole | null;
+    /** true면 서명을 펜 종류(색·굵기·진하기)가 무작위인 것처럼 바꿔 그린다. PDF 저장 때만 사용 */
+    naturalInk?: boolean;
 }
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
@@ -48,7 +51,7 @@ export async function composePage(
             const src = f.role === 'student' ? values.studentSig : values.guardianSig;
             const x = f.x * scale, y = f.y * scale, w = f.w * scale, h = f.h * scale;
             if (src) {
-                const img = await loadImage(src);
+                const img = await loadImage(values.naturalInk ? await stylizeSignature(src) : src);
                 // 서명판(3:1)을 칸 안에 비율을 지켜 가운데로 맞춘다. 글자와 겹쳐도 비치도록 multiply.
                 const r = Math.min(w / img.width, h / img.height);
                 const dw = img.width * r, dh = img.height * r;
