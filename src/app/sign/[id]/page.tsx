@@ -581,10 +581,10 @@ export default function SignPage() {
                                         position: 'absolute',
                                         // Centering logic with 60x15 slimmer size (v1.0.3) + meeting offset applied
                                         // 칸 너비(감지된 값)에 맞춰 큼지막하게, 높이는 비율(2.2:1)로 가운데 정렬
-                                        left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (((namePos.sigWidth ?? 60) * 1.3 * meetingScale * renderScale) / 2) + meetingOffsetX}px`,
-                                        top: `${(pageHeight - namePos.y) * renderScale - ((((namePos.sigWidth ?? 60) * 1.3 / 2.2) * meetingScale * renderScale) / 2) + meetingOffsetY}px`,
-                                        width: `${(namePos.sigWidth ?? 60) * 1.3 * meetingScale * renderScale}px`,
-                                        height: `${((namePos.sigWidth ?? 60) * 1.3 / 2.2) * meetingScale * renderScale}px`,
+                                        left: `${(namePos.x + namePos.w / 2 + namePos.delta) * renderScale - (((namePos.sigWidth ?? 60) * 1.0 * meetingScale * renderScale) / 2) + meetingOffsetX}px`,
+                                        top: `${(pageHeight - namePos.y) * renderScale - ((((namePos.sigWidth ?? 60) * 1.0 / 2.2) * meetingScale * renderScale) / 2) + meetingOffsetY}px`,
+                                        width: `${(namePos.sigWidth ?? 60) * 1.0 * meetingScale * renderScale}px`,
+                                        height: `${((namePos.sigWidth ?? 60) * 1.0 / 2.2) * meetingScale * renderScale}px`,
                                         pointerEvents: 'none',
                                         zIndex: 10,
                                         outline: submitted ? '2px solid #10b981' : 'none',

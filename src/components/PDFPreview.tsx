@@ -44,7 +44,7 @@ export default function PDFPreview({ file, attendees, onConfirm, meetingId, init
     const [offsetY, setOffsetY] = useState(initialOffsetY);
     const [sigGlobalScale, setSigGlobalScale] = useState(initialScale);
     // 서명을 칸 안에서 더 큼지막하게: 사용자가 조절하는 크기(sigGlobalScale) 위에 기본 확대를 곱한다
-    const SIG_BOOST = 1.3;
+    const SIG_BOOST = 1.0;
     const sigScaleEff = sigGlobalScale * SIG_BOOST;
 
     // [New] Oversample the canvas bitmap for crisp text when the document is
