@@ -848,7 +848,7 @@ export default function Home() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h1 className="title" style={{ fontSize: '1.2rem', margin: 0, background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>SignsCheck</h1>
           <span style={{ fontSize: '0.7rem', color: '#94a3b8', border: '1px solid #334155', padding: '0.1rem 0.4rem', borderRadius: '12px' }}>PRO</span>
-          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v1.4.3</span>
+          <span style={{ fontSize: '0.65rem', color: '#64748b', marginLeft: '0.5rem' }}>v{process.env.NEXT_PUBLIC_APP_VERSION}{process.env.NEXT_PUBLIC_COMMIT ? ` (${process.env.NEXT_PUBLIC_COMMIT})` : ''}</span>
 
           {/* 문서 유형 선택: 명렬형 / 회의형 / 학생·보호자 서명.
               파일을 열기 전에는 다음 업로드에 쓸 유형을 고르고, 연 뒤에는 바로 다시 인식한다.
