@@ -307,11 +307,34 @@ export function extractNamesFromStructuredData(items: PDFTextItem[], mode: Parse
     // found, since scanning every short word grabs body text.
     if (resolvedMode === 'roster' || potentialNames.size === 0) {
         // [New] Sort items globally for fallback (Top-down, then Left-right)
-        const sortedItems = [...items].sort((a, b) => {
+        let sortedItems = [...items].sort((a, b) => {
             if (a.page !== b.page) return a.page - b.page;
             if (Math.abs(a.y - b.y) > 10) return b.y - a.y;
             return a.x - b.x;
         });
+
+        // 명렬형: 왼쪽 열부터 위→아래 순서로 읽는다 (페이지별로 x 중심이 가까운 것끼리 한 열)
+        if (resolvedMode === 'roster') {
+            const colOf = new Map<PDFTextItem, number>();
+            const pages = Array.from(new Set(items.map(i => i.page))).sort((a, b) => a - b);
+            pages.forEach(pg => {
+                const pi = items.filter(i => i.page === pg)
+                    .sort((a, b) => (a.x + (a.width || 0) / 2) - (b.x + (b.width || 0) / 2));
+                let col = 0, prev = -Infinity;
+                pi.forEach(it => {
+                    const cx = it.x + (it.width || 0) / 2;
+                    if (prev !== -Infinity && cx - prev > 25) col++;
+                    prev = cx;
+                    colOf.set(it, col);
+                });
+            });
+            sortedItems = [...items].sort((a, b) => {
+                if (a.page !== b.page) return a.page - b.page;
+                const ca = colOf.get(a) ?? 0, cb = colOf.get(b) ?? 0;
+                if (ca !== cb) return ca - cb;
+                return b.y - a.y;
+            });
+        }
 
         // 표 머리글(교사명/성명…) 위쪽은 문서 제목이므로 이름으로 읽지 않는다
         // (예: "원클래스 사용자(교사) 자문 및 검증 활동 확인서"의 단어들이 참석자로 잡히는 문제)
