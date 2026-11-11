@@ -138,7 +138,9 @@ export default function Home() {
         const normPhone = data.phone ? normalizePhone(data.phone) : null;
         const key = normPhone || data.name;
 
-        if (key && !map[key]) {
+        // A signed request must never be shadowed by a newer pending duplicate
+        // (resending creates a new doc). Prefer signed over any other status.
+        if (key && (!map[key] || (data.status === 'signed' && map[key].status !== 'signed'))) {
           map[key] = {
             status: data.status,
             signatureUrl: data.signatureUrl,
@@ -576,7 +578,8 @@ export default function Home() {
       return;
     }
 
-    const toSend = attendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent'));
+    // Use live status (visibleAttendees) so already-signed people are never re-requested
+    const toSend = visibleAttendees.filter(a => a.selected && (a.status === 'pending' || a.status === 'sent'));
     if (toSend.length === 0) {
       showToast("전송할 대상이 없습니다.", "error");
       return;
